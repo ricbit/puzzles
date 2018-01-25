@@ -1,4 +1,4 @@
-all : akari 0hh1 stars hashi slither
+all : akari 0hh1 stars hashi slither nurikabe
 
 
 % : %.cover.cc
