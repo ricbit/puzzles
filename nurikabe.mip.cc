@@ -4,6 +4,7 @@
 #include <set>
 #include <cmath>
 #include <tuple>
+#include <iostream>
 #include "easyscip/easyscip.h"
 
 using namespace std;
@@ -630,12 +631,12 @@ struct Nurikabe {
 
 int main() {
   int rows, cols;
-  scanf("%d %d", &rows, &cols);
+  cin >> rows >> cols;
   int groups;
-  scanf("%d", &groups);
+  cin >> groups;
   vector<Group> group(groups);
   for (int i = 0; i < groups; i++) {
-    scanf("%d %d %d", &group[i].row, &group[i].col, &group[i].length);
+    cin >> group[i].row >> group[i].col >> group[i].length;
   }
   Nurikabe nurikabe(rows, cols, group);
   nurikabe.solve();

@@ -1,5 +1,10 @@
-all : akari 0hh1 stars hashi slither nurikabe
+PUZZLES = akari 0hh1 stars hashi slither nurikabe
 
+all : $(PUZZLES)
+
+
+clear :
+	rm $(PUZZLES)
 
 % : %.cover.cc
 	g++ --std=c++11 $< -o $@ \
