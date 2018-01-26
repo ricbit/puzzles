@@ -7,9 +7,9 @@ For extra motivation of why should anyone spend time programming puzzles, I reco
 Almost all puzzles here can be played online on the wonderful site [janko](https://www.janko.at/Raetsel/index.htm).
 
 The methods used to solve the puzzles so far:
-* Exact cover: an implementation of Knuth's Dancing Links algorithm.
-* Constraint programming: A small library I wrote, allowing for arbitrary constraints, and falling back to backtracking when no information can be extracted by manipulating the constraints.
-* Mixed integer programming: Programming MIP from scratch is hard, so instead I wrote an easy-to-use C++ frontend to the external library SCIP.
+* **Exact cover**: an implementation of Knuth's Dancing Links algorithm.
+* **Constraint programming**: A small library I wrote, allowing for arbitrary constraints, and falling back to backtracking when no information can be extracted by manipulating the constraints.
+* **Mixed integer programming**: Programming MIP from scratch is hard, so instead I wrote an easy-to-use C++ frontend to the external library SCIP.
 
 ## Akari (Light Up)
 
@@ -37,4 +37,16 @@ Rules:
 * Stars can't touch each other, not even on diagonals.
 
 ![Stars puzzle unsolved](images/stars.unsolved.gif) ![Stars puzzle solved](images/stars.solved.gif)
+
+## Hashiwokakero (Bridges)
+
+Rules:
+* Connect all islands with bridges.
+* Bridges must be horizontal or vertical.
+* Bridges can't cross each other.
+* Islands can be connected by one or two bridges.
+* The number on the island is the number of bridges connected to it.
+* All islands must be connected in a single group.
+
+![Hashi puzzle unsolved](images/hashi.unsolved.gif) ![Hashi puzzle solved](images/hashi.solved.gif)
 
