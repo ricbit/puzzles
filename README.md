@@ -7,7 +7,7 @@ For extra motivation of why should anyone spend time programming puzzles, I reco
 Almost all puzzles here can be played online on the wonderful site [janko](https://www.janko.at/Raetsel/index.htm).
 
 The methods used to solve the puzzles so far:
-* **Exact cover**: an implementation of Knuth's Dancing Links algorithm.
+* **Exact cover**: an implementation of the Dancing Links algorithm.
 * **Constraint programming**: A small library I wrote, allowing for arbitrary constraints, and falling back to backtracking when no information can be extracted by manipulating the constraints.
 * **Mixed integer programming**: Programming MIP from scratch is hard, so instead I wrote an easy-to-use C++ frontend to the external library SCIP.
 
@@ -21,7 +21,7 @@ Rules:
 
 ![Akari puzzle unsolved](images/akari.unsolved.png) ![Akari puzzle solved](images/akari.solved.png)
 
-## Takuzu (Binairo, 0hh1)
+## Takuzu (Binero, 0hh1)
 
 Rules:
 * Each row and column must have the same number of 0 and 1.
@@ -49,4 +49,12 @@ Rules:
 * All islands must be connected in a single group.
 
 ![Hashi puzzle unsolved](images/hashi.unsolved.png) ![Hashi puzzle solved](images/hashi.solved.png)
+
+## Slitherlink (Takegaki, Constrictor)
+
+Rules:
+* Draw lines between dots forming a single loop in grid.
+* Numbered cells must have exatcly that much lines on their edges.
+
+![Slither puzzle unsolved](images/slither.unsolved.gif) ![Slither puzzle solved](images/slither.solved.gif)
 
