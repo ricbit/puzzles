@@ -53,8 +53,20 @@ Rules:
 ## Slitherlink (Takegaki, Constrictor)
 
 Rules:
-* Draw lines between dots forming a single loop in grid.
-* Numbered cells must have exatcly that much lines on their edges.
+* Draw lines between dots forming a single loop.
+* Numbered cells must have exactly that much lines on their edges.
 
 ![Slither puzzle unsolved](images/slither.unsolved.gif) ![Slither puzzle solved](images/slither.solved.gif)
+
+## Nurikabe (Islands on the Stream)
+
+Rules:
+* Draw white islands in the grid.
+* Each island much have exactly one number.
+* The number indicates the size of the island.
+* Islands are 4-connected.
+* The river around the islands must be 4-connected in a single group.
+* The can be no 2x2 black blocks in the river.
+
+![Nurikabe puzzle unsolved](images/nurikabe.unsolved.gif) ![Nurikabe puzzle solved](images/nurikabe.solved.gif)
 
