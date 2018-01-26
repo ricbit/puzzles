@@ -1,4 +1,4 @@
-PUZZLES = akari 0hh1 stars hashi slither nurikabe
+PUZZLES = akari takuzu stars hashi slither nurikabe
 
 all : $(PUZZLES)
 

@@ -14,7 +14,14 @@ Rules:
 
 ![Akari puzzle unsolved](images/akari.unsolved.png) ![Akari puzzle solved](images/akari.solved.png)
 
+# Takuzu (Binairo, 0hh1)
 
+Rules:
+* Each row and column must have the same number of 0 and 1.
+* You can't place more than two of the same number adjacent to each other.
+* All rows and columns must be unique.
+
+![Takuzu puzzle unsolved](images/takuzu.unsolved.png)![Takuzu puzzle solved](images/takuzu.solved.png)
 
 
 
