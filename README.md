@@ -48,5 +48,5 @@ Rules:
 * The number on the island is the number of bridges connected to it.
 * All islands must be connected in a single group.
 
-![Hashi puzzle unsolved](images/hashi.unsolved.gif) ![Hashi puzzle solved](images/hashi.solved.gif)
+![Hashi puzzle unsolved](images/hashi.unsolved.png) ![Hashi puzzle solved](images/hashi.solved.png)
 
