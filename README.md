@@ -23,11 +23,11 @@ Rules:
 
 ![Takuzu puzzle unsolved](images/takuzu.unsolved.png) ![Takuzu puzzle solved](images/takuzu.solved.png)
 
-## Star batlle (Dopplestern)
+## Star batlle (Dopplestern, Sternenschlacht)
 
 Rules:
 * Every row, column and group must have two stars.
 * Stars can't touch each other, not even on diagonals.
 
-![Stars puzzle unsolved](images/stars.unsolved.png) ![Stars puzzle solved](images/stars.solved.png)
+![Stars puzzle unsolved](images/stars.unsolved.gif) ![Stars puzzle solved](images/stars.solved.gif)
 
