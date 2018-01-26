@@ -2,7 +2,14 @@
 
 A collection of solvers for many puzzles that I've written over the years. I've found that solving puzzles is a great way to teach myself new techniques from the combinatorial optimization field, and in fact I have used many of them in my actual job as a software engineer.
 
-The puzzles I like to solve appear in many magazines around the world, such as Nikoli (Japan), Denksel (German), Multilogic (France). Those are the ones I solved so far:
+For extra motivation of why should anyone spend time programming puzzles, I recommend the article "Are Toy Problems Useful?", written by Donald Knuth (and reprinted in [Selected Papers on Computer Science](https://www.amazon.com/Selected-Papers-Computer-Science-Lecture/dp/1881526917)).
+
+Almost all puzzles here can be played online on the wonderful site [janko](https://www.janko.at/Raetsel/index.htm).
+
+The methods used to solve the puzzles so far:
+* Exact cover: an implementation of Knuth's Dancing Links algorithm.
+* Constraint programming: A small library I wrote, allowing for arbitrary constraints, and falling back to backtracking when no information can be extracted by manipulating the constraints.
+* Mixed integer programming: Programming MIP from scratch is hard, so instead I wrote an easy-to-use C++ frontend to the external library SCIP.
 
 ## Akari (Light Up)
 
@@ -26,7 +33,7 @@ Rules:
 ## Star batlle (Dopplestern, Sternenschlacht)
 
 Rules:
-* Every row, column and group must have two stars.
+* Every row, column and group must have the same number of stars (the number is given, usually one or two).
 * Stars can't touch each other, not even on diagonals.
 
 ![Stars puzzle unsolved](images/stars.unsolved.gif) ![Stars puzzle solved](images/stars.solved.gif)
