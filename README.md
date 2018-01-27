@@ -66,7 +66,7 @@ Rules:
 * The number indicates the size of the island.
 * Islands are 4-connected and must not touch other islands.
 * The river around the islands must be 4-connected in a single group.
-* The can be no 2x2 black blocks in the river.
+* There can be no 2x2 black blocks in the river.
 
 ![Nurikabe puzzle unsolved](images/nurikabe.unsolved.gif) ![Nurikabe puzzle solved](images/nurikabe.solved.gif)
 
@@ -76,4 +76,11 @@ Rules:
 * Each row, column and group must have all numbers from 1 to 9 (or less for smaller puzzles).
 
 ![Chaos puzzle unsolved](images/chaos.unsolved.gif) ![Chaos puzzle solved](images/chaos.solved.gif)
+
+## Domino
+
+Rules:
+* Split the board into unique dominos (tiles which are 1x2 or 2x1).
+
+![Domino puzzle unsolved](images/domino.unsolved.gif) ![Domino puzzle solved](images/domino.solved.gif)
 
