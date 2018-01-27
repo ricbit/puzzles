@@ -82,5 +82,5 @@ Rules:
 Rules:
 * Split the board into unique dominos (tiles which are 1x2 or 2x1).
 
-![Domino puzzle unsolved](images/domino.unsolved.gif) ![Domino puzzle solved](images/domino.solved.gif)
+![Domino puzzle unsolved](images/domino.unsolved.png) ![Domino puzzle solved](images/domino.solved.png)
 
