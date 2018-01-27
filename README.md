@@ -30,7 +30,7 @@ Rules:
 
 ![Takuzu puzzle unsolved](images/takuzu.unsolved.png) ![Takuzu puzzle solved](images/takuzu.solved.png)
 
-## Star batlle (Dopplestern, Sternenschlacht)
+## Star Battle (Dopplestern, Sternenschlacht)
 
 Rules:
 * Every row, column and group must have the same number of stars (the number is given, usually one or two).
