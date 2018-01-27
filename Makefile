@@ -1,5 +1,5 @@
-PUZZLES = akari takuzu stars hashi slither nurikabe
-
+PUZZLES = akari takuzu stars hashi slither nurikabe chaos
+OPT = -m64 -mtune=native -fomit-frame-pointer -O3 -Wall
 all : $(PUZZLES)
 
 
@@ -7,14 +7,10 @@ clear :
 	rm $(PUZZLES)
 
 % : %.cover.cc
-	g++ --std=c++11 $< -o $@ \
-	-m64 -mtune=native -fomit-frame-pointer -O3 -Wall
+	g++ --std=c++11 $< -o $@ $(OPT)
 
 % : %.cp.cc
-	g++ --std=c++11 $< -o $@ \
-	-m64 -mtune=native -fomit-frame-pointer -O3 -Wall
+	g++ --std=c++11 $< -o $@ $(OPT)
 
 % : %.mip.cc
-	g++ -std=c++11 $< -o $@ \
-	-m64 -mtune=native -fomit-frame-pointer -O3 -Wall \
-	-lm -lscip
+	g++ -std=c++11 $< -o $@ $(OPT) -lm -lscip

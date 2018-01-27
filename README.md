@@ -64,9 +64,16 @@ Rules:
 * Draw white islands in the grid.
 * Each island much have exactly one number.
 * The number indicates the size of the island.
-* Islands are 4-connected.
+* Islands are 4-connected and must not touch other islands.
 * The river around the islands must be 4-connected in a single group.
 * The can be no 2x2 black blocks in the river.
 
 ![Nurikabe puzzle unsolved](images/nurikabe.unsolved.gif) ![Nurikabe puzzle solved](images/nurikabe.solved.gif)
+
+## Sudoku Chaos (Sudoku Irregular)
+
+Rules:
+* Each row, column and group must have all numbers from 1 to 9 (or less for smaller puzzles).
+
+![Chaos puzzle unsolved](images/chaos.unsolved.gif) ![Chaos puzzle solved](images/chaos.solved.gif)
 
