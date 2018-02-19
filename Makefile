@@ -1,5 +1,5 @@
-PUZZLES = akari takuzu stars hashi slither nurikabe chaos domino
-OPT = -m64 -mtune=native -fomit-frame-pointer -O3 -Wall
+PUZZLES = akari takuzu stars hashi slither nurikabe chaos domino suguru
+OPT = -m64 -mtune=native -fomit-frame-pointer -O3 -Wall -g
 all : $(PUZZLES)
 
 
