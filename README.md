@@ -88,7 +88,7 @@ Rules:
 
 Rules:
 * Each group of size n must have all numbers from 1 to n.
-* Numbers can touch each other, not even on diagonal.
+* Numbers can't touch each other, not even on diagonal.
 
 ![Suguru puzzle unsolved](images/suguru.unsolved.gif) ![Suguru puzzle solved](images/suguru.solved.gif)
 
