@@ -10,11 +10,23 @@ bool valid(int i, int j, int w, int h) {
   return i >= 0 && i < w && j >= 0 && j < h;
 }
 
+int distance(int g, int p, int w, int h) {
+    int ig = g % w, jg = g / w;
+    int ip = p % w, jp = p / w;
+    return abs(ig - ip) + abs(jg - jp);
+}
+
+template<typename T>
+int iround(T x) {
+  return static_cast<int>(x + 0.5);
+}
+
 int main() {
   int h, w, gmax;
   cin >> h >> w >> gmax;
   int ngroups = h * w;
   int npos = h * w;
+
   // Add variables.
   MIPSolver mip;
   vector<vector<Variable>> group_size(ngroups);
@@ -28,8 +40,20 @@ int main() {
       ngroups, vector<vector<Variable>>(npos));
   for (int g = 0; g < ngroups; g++) {
     for (int p = 0; p < npos; p++) {
-      for (int m = 0; m < gmax; m++) {
+      for (int d = 0; d < gmax; d++) {
         group[g][p].push_back(mip.binary_variable(0));
+      }
+    }
+  }
+
+  vector<vector<vector<Variable>>> 
+      inflow(ngroups, vector<vector<Variable>>(npos)),
+      outflow(ngroups, vector<vector<Variable>>(npos));
+  for (int g = 0; g < ngroups; g++) {
+    for (int p = 0; p < npos; p++) {
+      for (int f = 0; f < 4; f++) {
+        inflow[g][p].push_back(mip.integer_variable(0, gmax - 1, 0));
+        outflow[g][p].push_back(mip.integer_variable(0, gmax - 1, 0));
       }
     }
   }
@@ -37,9 +61,7 @@ int main() {
   // Mark static unreachables.
   for (int g = 0; g < ngroups; g++) {
     for (int p = 0; p < npos; p++) {
-      int ig = g % w, jg = g / w;
-      int ip = p % w, jp = p / w;
-      if (abs(ig - ip) + abs(jg - jp) > gmax) {
+      if (distance(g, p, w, h) > gmax) {
         auto cons = mip.constraint();
         for (int d = 0; d < gmax; d++) {
           cons.add_variable(group[g][p][d], 1);
@@ -47,6 +69,22 @@ int main() {
         cons.commit(0, 0);
       }
     }
+  }
+
+  // Mark dynamic unreachables.
+  for (int g = 0; g < ngroups; g++) {
+    auto cons = mip.constraint();
+    for (int p = 0; p < npos; p++) {
+      for (int d = 0; d < gmax; d++) {
+        cons.add_variable(group[g][p][d], -d);
+      }
+    }
+    for (int p = 0; p < npos; p++) {
+      for (int d = 0; d < gmax; d++) {
+        cons.add_variable(group[g][p][d], distance(g, p, w, h));
+      }
+    }
+    cons.commit(-npos * gmax * gmax, 0);
   }
 
   // Each group has only one size.
@@ -132,8 +170,53 @@ int main() {
     }
   }
 
+  // Flow entering a digit 1 is always zero.
+  for (int g = 0; g < ngroups; g++) {
+    auto cons = mip.constraint();
+    for (int i = 0; i < 4; i++) {
+      cons.add_variable(inflow[g][g][i], 1);
+    }
+    cons.commit(0, 0);
+  }
+
+  // Flow exiting a digit 1 is equal to (max-1).
+  for (int g = 0; g < ngroups; g++) {
+    auto cons = mip.constraint();
+    for (int p = 0; p < npos; p++) {
+      if (g != p) {
+        for (int d = 1; d < gmax; d++) {
+          cons.add_variable(group[g][p][d], 1);
+        }
+      }
+    }
+    for (int i = 0; i < 4; i++) {
+      cons.add_variable(outflow[g][g][i], -1);
+    }
+    cons.commit(0, 0);
+  }
+
+  // Kirchoff's law for flows.
+  /*for (int g = 0; g < ngroups; g++) {
+    for (int p = 0; p < npos; p++) {
+      if (g == p) {
+        continue;
+      }
+      auto cons = mip.constraint();
+      static int di[4] = {1, -1, 0, 0};
+      static int dj[4] = {0, 0, 1, -1};
+      int pi = p % w, pj = p / w;
+      for (int i = 0; i < 4; i++) {
+        if (valid(pi + di[i], pj + dj[i], w, h)) {
+        }
+      }
+    }
+  }*/
+
   // Solve and print.
   auto sol = mip.solve();
+  if (!sol.is_optimal()) {
+    return 0;
+  }
   for (int j = 0; j < h; j++) {
     for (int i = 0; i < w; i++) {
       int p = j * w + i;
@@ -141,7 +224,16 @@ int main() {
         for (int d = 0; d < gmax; d++) {
           if (sol.value(group[g][p][d]) > 0.5) {
             cout << d + 1;
-            cout << static_cast<char>('a' + g) << " ";
+            cout << static_cast<char>('a' + g);
+            cout << "(";
+            for (int i = 0; i < 4; i++) {
+              cout << iround(sol.value(inflow[g][p][i]));
+            }
+            cout << ";";
+            for (int i = 0; i < 4; i++) {
+              cout << iround(sol.value(outflow[g][p][i]));
+            }
+            cout << ") ";
           }
         }
       }
