@@ -29,12 +29,6 @@ int main() {
 
   // Add variables.
   MIPSolver mip;
-  vector<vector<Variable>> group_size(ngroups);
-  for (int i = 0; i < ngroups; i++) {
-    for (int g = 0; g < gmax; g++) {
-      group_size[i].push_back(mip.binary_variable(0));
-    }
-  }
 
   vector<vector<vector<Variable>>> group(
       ngroups, vector<vector<Variable>>(npos));
@@ -52,8 +46,8 @@ int main() {
   for (int g = 0; g < ngroups; g++) {
     for (int p = 0; p < npos; p++) {
       for (int f = 0; f < 4; f++) {
-        inflow[g][p].push_back(mip.integer_variable(0, gmax - 1, 0));
-        outflow[g][p].push_back(mip.integer_variable(0, gmax - 1, 0));
+        inflow[g][p].push_back(mip.integer_variable(0, gmax - 1, 1));
+        outflow[g][p].push_back(mip.integer_variable(0, gmax - 1, 1));
       }
     }
   }
@@ -85,15 +79,6 @@ int main() {
       }
     }
     cons.commit(-npos * gmax * gmax, 0);
-  }
-
-  // Each group has only one size.
-  for (int i = 0; i < ngroups; i++) {
-    auto cons = mip.constraint();
-    for (int g = 0; g < gmax; g++) {
-      cons.add_variable(group_size[i][g], 1);
-    }
-    cons.commit(1, 1);
   }
 
   // A group may only have one or less number of each kind.
@@ -195,23 +180,60 @@ int main() {
     cons.commit(0, 0);
   }
 
-  // Kirchoff's law for flows.
-  /*for (int g = 0; g < ngroups; g++) {
+  // Kirchoff's law for nodes.
+  for (int g = 0; g < ngroups; g++) {
     for (int p = 0; p < npos; p++) {
       if (g == p) {
         continue;
       }
       auto cons = mip.constraint();
-      static int di[4] = {1, -1, 0, 0};
-      static int dj[4] = {0, 0, 1, -1};
-      int pi = p % w, pj = p / w;
       for (int i = 0; i < 4; i++) {
+        cons.add_variable(outflow[g][p][i], 1);
+        cons.add_variable(inflow[g][p][i], -1);
+      }
+      for (int d = 1; d < gmax; d++) {
+        cons.add_variable(group[g][p][d], 1);
+      }
+      cons.commit(0, 0);
+    }
+  }
+
+  // Kirchoff's law for edges.
+  /*for (int g = 0; g < ngroups; g++) {
+    for (int p = 0; p < npos; p++) {
+      if (g == p) {
+        continue;
+      }
+      for (int i = 0; i < 4; i++) {
+        static int di[4] = {1, -1, 0, 0};
+        static int dj[4] = {0, 0, 1, -1};
+        int pi = p % w, pj = p / w;
         if (valid(pi + di[i], pj + dj[i], w, h)) {
+          int pp = pi + di[i] + w * (pj + dj[i]);
+          auto cons1 = mip.constraint();
+          cons1.add_variable(outflow[g][pp][i], 1);
+          cons1.add_variable(inflow[g][p][i ^ 1], -1);
+          cons1.commit(0, 0);
+          auto cons2 = mip.constraint();
+          cons2.add_variable(outflow[g][p][i], 1);
+          cons2.add_variable(inflow[g][pp][i ^ 1], -1);
+          cons2.commit(0, 0);
+        } else {
+          auto cons = mip.constraint();
+          cons.add_variable(outflow[g][p][i], 1);
+          cons.add_variable(inflow[g][p][i], 1);
+          cons.commit(0, 0);
         }
       }
     }
   }*/
 
+  // All flows are zero if a cell is inactive.
+  /*for (int g = 0; g < ngroups; g++) {
+    for (int p = 0; p < npos; p++) {
+
+    }
+  }*/
   // Solve and print.
   auto sol = mip.solve();
   if (!sol.is_optimal()) {
