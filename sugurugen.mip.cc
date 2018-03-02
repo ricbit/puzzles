@@ -46,8 +46,8 @@ int main() {
   for (int g = 0; g < ngroups; g++) {
     for (int p = 0; p < npos; p++) {
       for (int f = 0; f < 4; f++) {
-        inflow[g][p].push_back(mip.integer_variable(0, gmax - 1, 1));
-        outflow[g][p].push_back(mip.integer_variable(0, gmax - 1, 1));
+        inflow[g][p].push_back(mip.integer_variable(0, gmax - 1, 0));
+        outflow[g][p].push_back(mip.integer_variable(0, gmax - 1, 0));
       }
     }
   }
@@ -199,11 +199,8 @@ int main() {
   }
 
   // Kirchoff's law for edges.
-  /*for (int g = 0; g < ngroups; g++) {
+  for (int g = 0; g < ngroups; g++) { 
     for (int p = 0; p < npos; p++) {
-      if (g == p) {
-        continue;
-      }
       for (int i = 0; i < 4; i++) {
         static int di[4] = {1, -1, 0, 0};
         static int dj[4] = {0, 0, 1, -1};
@@ -211,12 +208,12 @@ int main() {
         if (valid(pi + di[i], pj + dj[i], w, h)) {
           int pp = pi + di[i] + w * (pj + dj[i]);
           auto cons1 = mip.constraint();
-          cons1.add_variable(outflow[g][pp][i], 1);
-          cons1.add_variable(inflow[g][p][i ^ 1], -1);
+          cons1.add_variable(outflow[g][pp][i ^ 1], 1);
+          cons1.add_variable(inflow[g][p][i], -1);
           cons1.commit(0, 0);
           auto cons2 = mip.constraint();
-          cons2.add_variable(outflow[g][p][i], 1);
-          cons2.add_variable(inflow[g][pp][i ^ 1], -1);
+          cons2.add_variable(inflow[g][pp][i ^ 1], 1);
+          cons2.add_variable(outflow[g][p][i], -1);
           cons2.commit(0, 0);
         } else {
           auto cons = mip.constraint();
@@ -226,14 +223,23 @@ int main() {
         }
       }
     }
-  }*/
+  }
 
   // All flows are zero if a cell is inactive.
-  /*for (int g = 0; g < ngroups; g++) {
+  for (int g = 0; g < ngroups; g++) {
     for (int p = 0; p < npos; p++) {
-
+      auto cons = mip.constraint();
+      for (int d = 0; d < gmax; d++) {
+        cons.add_variable(group[g][p][d], 8);
+      }
+      for (int i = 0; i < 4; i++) {
+        cons.add_variable(outflow[g][p][i], -1);
+        cons.add_variable(inflow[g][p][i], -1);
+      }
+      cons.commit(0, 8);
     }
-  }*/
+  }
+
   // Solve and print.
   auto sol = mip.solve();
   if (!sol.is_optimal()) {
@@ -243,6 +249,7 @@ int main() {
     for (int i = 0; i < w; i++) {
       int p = j * w + i;
       for (int g = 0; g < ngroups; g++) {
+        bool has = false;
         for (int d = 0; d < gmax; d++) {
           if (sol.value(group[g][p][d]) > 0.5) {
             cout << d + 1;
@@ -256,8 +263,29 @@ int main() {
               cout << iround(sol.value(outflow[g][p][i]));
             }
             cout << ") ";
+            has = true;
           }
         }
+        if (!has) {
+          int s = 0;
+          for (int i = 0; i < 4; i++) {
+            s += iround(sol.value(inflow[g][p][i]));
+            s += iround(sol.value(outflow[g][p][i]));
+          }
+          if (s > 0) {
+            cout << "[";
+            cout << static_cast<char>('a' + g);
+            cout << j << "," << i <<  " ";
+            for (int i = 0; i < 4; i++) {
+              cout << iround(sol.value(inflow[g][p][i]));
+            }
+            cout << ";";
+            for (int i = 0; i < 4; i++) {
+              cout << iround(sol.value(outflow[g][p][i]));
+            }
+            cout << ") ";
+          }
+        } 
       }
     }
     cout << "\n";
