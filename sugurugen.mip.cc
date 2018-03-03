@@ -241,6 +241,7 @@ int main() {
   }
 
   // Solve and print.
+  mip.write_model("suguru.mps");
   auto sol = mip.solve();
   if (!sol.is_optimal()) {
     return 0;

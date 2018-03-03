@@ -5,6 +5,7 @@
 // Please check the examples for a sample usage.
 
 #include <vector>
+#include <string>
 #include "objscip/objscip.h"
 #include "objscip/objscipdefplugins.h"
 
@@ -34,9 +35,9 @@ class Variable {
 
 class BinaryVariable : public Variable {
  protected:
-  BinaryVariable(SCIP *scip, double objective) {
+  BinaryVariable(SCIP *scip, double objective, std::string name) {
     SCIPcreateVarBasic(
-        scip, &var_, "variable", 0, 1, objective, SCIP_VARTYPE_BINARY);
+        scip, &var_, name.c_str(), 0, 1, objective, SCIP_VARTYPE_BINARY);
     SCIPaddVar(scip, var_);
   }
   friend MIPSolver;
@@ -45,9 +46,9 @@ class BinaryVariable : public Variable {
 class IntegerVariable : public Variable {
  protected:
   IntegerVariable(SCIP *scip, double lower_bound, double upper_bound, 
-                  double objective) {
+                  double objective, std::string name) {
     SCIPcreateVarBasic(
-        scip, &var_, "variable", lower_bound, upper_bound, objective, 
+        scip, &var_, name.c_str(), lower_bound, upper_bound, objective, 
         SCIP_VARTYPE_INTEGER);
     SCIPaddVar(scip, var_);
   }
@@ -114,7 +115,6 @@ class MIPConstraint : public BaseConstraint {
         FALSE,  // dynamic
         FALSE,  // removable
         FALSE); // stickatnode
-    //printf("add: %d\n", SCIPaddCons(scip_, cons));
     SCIPaddCons(scip_, cons);
     SCIPreleaseCons(scip_, &cons);
     delete[] vars;
@@ -299,20 +299,30 @@ class MIPSolver {
     SCIPsetMessagehdlrLogfile(scip_, "log.txt");
     SCIPprintVersion(scip_, NULL);
     SCIPsetEmphasis(scip_, SCIP_PARAMEMPHASIS_OPTIMALITY, FALSE);
-    handler = new Handler(scip_);
-    SCIPincludeObjConshdlr(scip_, handler, TRUE);
+    handler_ = new Handler(scip_);
+    SCIPincludeObjConshdlr(scip_, handler_, TRUE);
     SCIPincludeDefaultPlugins(scip_);
     SCIPcreateProbBasic(scip_, "MIP");
   }
   ~MIPSolver() {
+    for (auto var : variables_) {
+      SCIPreleaseVar(scip_, &var.var_);
+    }
     SCIPfree(&scip_);
   }
   Variable binary_variable(double objective) {
-    return BinaryVariable(scip_, objective);
+    return push_var(BinaryVariable(scip_, objective, next_name()));
   }
   Variable integer_variable(int lower_bound, int upper_bound, 
                             double objective) {
-    return IntegerVariable(scip_, lower_bound, upper_bound, objective);
+    return push_var(IntegerVariable(scip_, lower_bound, upper_bound, objective, next_name()));
+  }
+  Variable push_var(Variable var) {
+    variables_.push_back(var);
+    return var;
+  }
+  std::string next_name() {
+    return std::string("variable") + std::to_string(variables_.size());
   }
   Constraint constraint() {
     return Constraint(new MIPConstraint(scip_));
@@ -323,7 +333,7 @@ class MIPSolver {
   }
   void add_dynamic_constraint(DynamicConstraint& constraint) {
     constraint.set_scip(scip_);
-    handler->add_dynamic_constraint(constraint);
+    handler_->add_dynamic_constraint(constraint);
   }
   void set_time_limit(int seconds) {
     SCIPsetRealParam(scip_, "limits/time", seconds);
@@ -333,9 +343,13 @@ class MIPSolver {
     SCIP_Bool valid;
     return SCIPgetNCountedSols(scip_, &valid);
   }
+  void write_model(std::string filename) {
+    SCIPwriteOrigProblem(scip_, filename.c_str(), NULL, 0);
+  }
  private:
   SCIP *scip_;
-  Handler *handler;
+  Handler *handler_;
+  std::vector<Variable> variables_;
 };
 
 }  // namespace easyscip

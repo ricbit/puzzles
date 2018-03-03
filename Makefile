@@ -13,5 +13,5 @@ clear :
 % : %.cp.cc
 	g++ --std=c++11 $< -o $@ $(OPT)
 
-% : %.mip.cc
+% : %.mip.cc easyscip/easyscip.h
 	g++ -std=c++11 $< -o $@ $(OPT) -lm -lscip
