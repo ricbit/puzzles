@@ -48,7 +48,7 @@ class IntegerVariable : public Variable {
   IntegerVariable(SCIP *scip, double lower_bound, double upper_bound, 
                   double objective, std::string name) {
     SCIPcreateVarBasic(
-        scip, &var_, name.c_str(), lower_bound, upper_bound, objective, 
+        scip, &var_, name.c_str(), lower_bound, upper_bound, objective,
         SCIP_VARTYPE_INTEGER);
     SCIPaddVar(scip, var_);
   }
@@ -229,78 +229,13 @@ class DynamicConstraint {
   friend Handler;
 };
 
-struct Handler : public scip::ObjConshdlr {
-  SCIP *scip;
-  std::vector<DynamicConstraint*> handlers;
-  Handler(SCIP *scip_) 
-      : ObjConshdlr(scip_, "group", "group constraint",
-                    -1000,      // sepapriority
-                    -2000,      // enfopriority
-                    -2000,      // checkpriority
-                    -1,         // sepafreq
-                    1,         // propfreq
-                    1,          // eagerfreq
-                    0,          // maxprerounds
-                    FALSE,      // delaysepa
-                    FALSE,      // delayprop
-                    FALSE,      // delaypresol
-                    FALSE,      // needscons
-                    SCIP_PROPTIMING_BEFORELP),
-        scip(scip_) {
-  }
-  virtual ~Handler() {
-  }
-  virtual SCIP_DECL_CONSTRANS(scip_trans) {
-    return SCIP_OKAY;
-  }
-  virtual SCIP_DECL_CONSENFOLP(scip_enfolp) {
-    printf("folp\n");
-    Solution solution(new LPSolution(scip));
-    *result = SCIP_FEASIBLE;
-    for (int i = 0; i < int(handlers.size()); i++) {
-      handlers[i]->set_constraint(true);
-      if (!handlers[i]->check_solution(solution)) {
-        *result = SCIP_INFEASIBLE;
-      }
-    }
-    return SCIP_OKAY;
-  }
-  virtual SCIP_DECL_CONSENFOPS(scip_enfops) {
-    printf("fops\n");
-    *result = SCIP_FEASIBLE;
-    return SCIP_OKAY;
-  }
-  virtual SCIP_DECL_CONSCHECK(scip_check) {
-    printf("check\n");    
-    printf("status %d\n",  SCIPgetStatus(scip_));
-    Solution solution(new MIPSolution(scip, sol));
-    for (int i = 0; i < int(handlers.size()); i++) {
-      handlers[i]->set_constraint(false);
-      if (!handlers[i]->check_solution(solution)) {
-        *result = SCIP_INFEASIBLE;
-        return SCIP_OKAY;
-      }
-    }
-    *result = SCIP_FEASIBLE;
-    return SCIP_OKAY;
-  }
-  virtual SCIP_DECL_CONSLOCK(scip_lock) {
-    return SCIP_OKAY;
-  }
-  void add_dynamic_constraint(DynamicConstraint& constraint) {
-    handlers.push_back(&constraint);
-  }
-};
-
 class MIPSolver {
  public:
-  MIPSolver() {
-    SCIPcreate (&scip_);
+  MIPSolver() : constraints_(0) {
+    SCIPcreate(&scip_);
     SCIPsetMessagehdlrLogfile(scip_, "log.txt");
     SCIPprintVersion(scip_, NULL);
     SCIPsetEmphasis(scip_, SCIP_PARAMEMPHASIS_OPTIMALITY, FALSE);
-    handler_ = new Handler(scip_);
-    SCIPincludeObjConshdlr(scip_, handler_, TRUE);
     SCIPincludeDefaultPlugins(scip_);
     SCIPcreateProbBasic(scip_, "MIP");
   }
@@ -315,7 +250,8 @@ class MIPSolver {
   }
   Variable integer_variable(int lower_bound, int upper_bound, 
                             double objective) {
-    return push_var(IntegerVariable(scip_, lower_bound, upper_bound, objective, next_name()));
+    return push_var(IntegerVariable(
+        scip_, lower_bound, upper_bound, objective, next_name()));
   }
   Variable push_var(Variable var) {
     variables_.push_back(var);
@@ -331,10 +267,6 @@ class MIPSolver {
     SCIPsolve(scip_);
     return Solution(new MIPSolution(scip_, SCIPgetBestSol(scip_)));
   }
-  void add_dynamic_constraint(DynamicConstraint& constraint) {
-    constraint.set_scip(scip_);
-    handler_->add_dynamic_constraint(constraint);
-  }
   void set_time_limit(int seconds) {
     SCIPsetRealParam(scip_, "limits/time", seconds);
   }
@@ -347,8 +279,8 @@ class MIPSolver {
     SCIPwriteOrigProblem(scip_, filename.c_str(), NULL, 0);
   }
  private:
+  int constraints_;
   SCIP *scip_;
-  Handler *handler_;
   std::vector<Variable> variables_;
 };
 
