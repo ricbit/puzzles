@@ -40,12 +40,12 @@ int main() {
     }
   }
 
-  vector<vector<Variable>> group_max(ngroups);
+  /*vector<vector<Variable>> group_max(ngroups);
   for (int g = 0; g < ngroups; g++) {
     for (int d = 0; d < gmax; d++) {
       group_max[g].push_back(mip.binary_variable(0));
     }
-  }
+  }*/
 
   vector<vector<vector<Variable>>> 
       inflow(ngroups, vector<vector<Variable>>(npos)),
@@ -62,7 +62,7 @@ int main() {
   // Mark static unreachables.
   for (int g = 0; g < ngroups; g++) {
     for (int p = 0; p < npos; p++) {
-      if (distance(g, p, w, h) > gmax) {
+      if (distance(g, p, w, h) >= gmax) {
         auto cons = mip.constraint();
         for (int d = 0; d < gmax; d++) {
           cons.add_variable(group[g][p][d], 1);
@@ -89,18 +89,45 @@ int main() {
   }
 
   // Save the current max for each group.
-  for (int g = 0; g < ngroups; g++) {
+  /*for (int g = 0; g < ngroups; g++) {
     for (int d = 0; d < gmax; d++) {
-      auto cons = mip.constraint();
+      auto cons1 = mip.constraint();
       for (int p = 0; p < npos; p++) {
         for (int dd = 0; dd < gmax; dd++) {
-          cons.add_variable(group[g][p][dd], 1);
+          cons1.add_variable(group[g][p][dd], 1);
         }
       }
-      cons.add_variable(group_max[g][d], -(gmax + d));
-      cons.commit(-gmax + 1, d);
+      cons1.add_variable(group_max[g][d], -(gmax + 1));
+      cons1.commit(-gmax + d, d);
     }
-  }
+  }*/
+
+  // Generic unreachability. (slow)
+  /*for (int g = 0; g < ngroups; g++) {
+    for (int p = 0; p < npos; p++) {
+      if (distance(g, p, w, h) >= gmax) {
+        continue;
+      }
+      auto cons = mip.constraint();
+      for (int pp = 0; pp < npos; pp++) {
+        if (p == pp) {
+          continue;
+        }
+        for (int d = 0; d < gmax; d++) {
+          cons.add_variable(group[g][pp][d], distance(p, pp, w, h));
+        }
+      }
+      for (int m = 0; m < gmax; m++) {
+        cons.add_variable(group_max[g][m], -m);
+      }
+      const int limit = gmax * (gmax - 1) / 2;
+      const int large = gmax * gmax * gmax * gmax;
+      for (int d = 0; d < gmax; d++) {
+        cons.add_variable(group[g][p][d], large);
+      }
+      cons.commit(-limit, large + limit);
+    }
+  }*/
 
   // A group may only have one or less number of each kind.
   for (int g = 0; g < ngroups; g++) {
@@ -262,11 +289,12 @@ int main() {
   }
 
   // Solve and print.
+  //auto sol = mip.parallel_solve();
   auto sol = mip.solve();
   if (!sol.is_optimal()) {
     return 0;
   }
-  for (int g = 0; g < ngroups; g++) {
+  /*for (int g = 0; g < ngroups; g++) {
     bool has = false;
     for (int d = 0; d < gmax; d++) {
       if (sol.value(group_max[g][d]) > 0.5) {
@@ -278,7 +306,7 @@ int main() {
     if (has) {
       cout << "\n";
     }
-  }
+  }*/
   for (int j = 0; j < h; j++) {
     for (int i = 0; i < w; i++) {
       int p = j * w + i;

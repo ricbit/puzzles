@@ -243,6 +243,10 @@ class MIPSolver {
     SCIPsolve(scip_);
     return Solution(new MIPSolution(scip_, SCIPgetBestSol(scip_)));
   }
+  Solution parallel_solve() {
+    SCIPsolveConcurrent(scip_);
+    return Solution(new MIPSolution(scip_, SCIPgetBestSol(scip_)));
+  }
   void set_time_limit(int seconds) {
     SCIPsetRealParam(scip_, "limits/time", seconds);
   }
