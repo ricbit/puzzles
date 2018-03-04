@@ -45,7 +45,7 @@ class BinaryVariable : public Variable {
 
 class IntegerVariable : public Variable {
  protected:
-  IntegerVariable(SCIP *scip, double lower_bound, double upper_bound, 
+  IntegerVariable(SCIP *scip, double lower_bound, double upper_bound,
                   double objective, std::string name) {
     SCIPcreateVarBasic(
         scip, &var_, name.c_str(), lower_bound, upper_bound, objective,
@@ -103,8 +103,8 @@ class MIPConstraint : public BaseConstraint {
     copy(vals_.begin(), vals_.end(), vals);
     SCIP_CONS *cons;
     SCIPcreateConsLinear(
-        scip_, &cons, "constraint", vars_.size(), vars, vals, 
-        lower_bound, upper_bound, 
+        scip_, &cons, name_.c_str(), vars_.size(), vars, vals,
+        lower_bound, upper_bound,
         TRUE,   // initial
         TRUE,   // separate
         TRUE,   // enforce
@@ -122,9 +122,11 @@ class MIPConstraint : public BaseConstraint {
   }
  private:
   SCIP *scip_;
+  std::string name_;
   std::vector<SCIP_VAR*> vars_;
   std::vector<SCIP_Real> vals_;
-  MIPConstraint(SCIP *scip) : scip_(scip) {
+  MIPConstraint(SCIP *scip, int id)
+      : scip_(scip), name_(std::string("constraint") + std::to_string(id)) {
   }
   friend MIPSolver;
   friend DynamicConstraint;
@@ -203,32 +205,6 @@ class LPSolution : public BaseSolution {
   friend Handler;
 };
 
-class DynamicConstraint {
- public:
-  virtual bool check_solution(Solution& solution) = 0;
-  Constraint constraint() {
-    if (enable_) {
-      return Constraint(new MIPConstraint(scip_));
-    } else {
-      return Constraint(new EmptyConstraint());
-    }
-  }
- protected:
-  DynamicConstraint() : enable_(false), scip_(NULL) {
-  }
- private:
-  void set_constraint(bool enable) {
-    enable_ = enable;
-  }
-  void set_scip(SCIP* scip) {
-    scip_ = scip;
-  }
-  bool enable_;
-  SCIP* scip_;
-  friend MIPSolver;
-  friend Handler;
-};
-
 class MIPSolver {
  public:
   MIPSolver() : constraints_(0) {
@@ -248,7 +224,7 @@ class MIPSolver {
   Variable binary_variable(double objective) {
     return push_var(BinaryVariable(scip_, objective, next_name()));
   }
-  Variable integer_variable(int lower_bound, int upper_bound, 
+  Variable integer_variable(int lower_bound, int upper_bound,
                             double objective) {
     return push_var(IntegerVariable(
         scip_, lower_bound, upper_bound, objective, next_name()));
@@ -261,7 +237,7 @@ class MIPSolver {
     return std::string("variable") + std::to_string(variables_.size());
   }
   Constraint constraint() {
-    return Constraint(new MIPConstraint(scip_));
+    return Constraint(new MIPConstraint(scip_, constraints_++));
   }
   Solution solve() {
     SCIPsolve(scip_);
