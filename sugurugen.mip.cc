@@ -40,6 +40,13 @@ int main() {
     }
   }
 
+  vector<vector<Variable>> group_max(ngroups);
+  for (int g = 0; g < ngroups; g++) {
+    for (int d = 0; d < gmax; d++) {
+      group_max[g].push_back(mip.binary_variable(0));
+    }
+  }
+
   vector<vector<vector<Variable>>> 
       inflow(ngroups, vector<vector<Variable>>(npos)),
       outflow(ngroups, vector<vector<Variable>>(npos));
@@ -79,6 +86,20 @@ int main() {
       }
     }
     cons.commit(-npos * gmax * gmax, 0);
+  }
+
+  // Save the current max for each group.
+  for (int g = 0; g < ngroups; g++) {
+    for (int d = 0; d < gmax; d++) {
+      auto cons = mip.constraint();
+      for (int p = 0; p < npos; p++) {
+        for (int dd = 0; dd < gmax; dd++) {
+          cons.add_variable(group[g][p][dd], 1);
+        }
+      }
+      cons.add_variable(group_max[g][d], -(gmax + d));
+      cons.commit(-gmax + 1, d);
+    }
   }
 
   // A group may only have one or less number of each kind.
@@ -241,10 +262,22 @@ int main() {
   }
 
   // Solve and print.
-  mip.write_model("suguru.mps");
   auto sol = mip.solve();
   if (!sol.is_optimal()) {
     return 0;
+  }
+  for (int g = 0; g < ngroups; g++) {
+    bool has = false;
+    for (int d = 0; d < gmax; d++) {
+      if (sol.value(group_max[g][d]) > 0.5) {
+        cout << static_cast<char>('a' + g);
+        cout << d + 1 << " ";
+        has = true;
+      }
+    }
+    if (has) {
+      cout << "\n";
+    }
   }
   for (int j = 0; j < h; j++) {
     for (int i = 0; i < w; i++) {
