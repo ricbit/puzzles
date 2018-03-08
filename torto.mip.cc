@@ -27,6 +27,19 @@ int len(string& s) {
   return static_cast<int>(s.size());
 }
 
+template<typename T>
+int len(vector<T> vec) {
+  return static_cast<int>(vec.size());
+}
+
+struct Position {
+  int word, start;
+};
+
+struct Bigram {
+  Position a, b;
+};
+
 int main() {
   int nwords;
   cin >> nwords;
@@ -56,6 +69,47 @@ int main() {
       for (int c = 0; c < len(words[w]); c++) {
         grid[p][w].push_back(mip.binary_variable(0));
       }
+    }
+  }
+
+  vector<Variable> bigramvar;
+  vector<Bigram> bigrams;
+  for (int w = 0; w < nwords; w++) {
+    for (int c = 0; c < len(words[w]) - 1; c++) {
+      for (int ww = 0; ww < nwords; ww++) {
+        if (w == ww) continue;
+        for (int cc = 0; cc < len(words[ww]) - 1; cc++) {
+          if (c == cc) continue;
+          if (words[w][c] == words[ww][cc] && 
+              words[w][c + 1] == words[ww][cc + 1]) {
+            bigramvar.push_back(mip.binary_variable(-1));
+            bigrams.push_back(Bigram{Position{w, c}, Position{ww,cc}});
+          }
+        }
+      }
+    }
+  }
+
+  // Enforce bigrams.
+  for (int i = 0; i < len(bigrams); i++) {
+    for (int p = 0; p < npos; p++) {
+      auto& b = bigrams[i];
+      auto cons1 = mip.constraint();
+      cons1.add_variable(bigramvar[i], 1);
+      cons1.add_variable(grid[p][b.a.word][b.a.start], 1);
+      for (int pp = 0; pp < npos; pp++) {
+        if (p == pp) continue;
+        cons1.add_variable(grid[pp][b.b.word][b.b.start], 1);
+      }
+      cons1.commit(0, 2);
+      auto cons2 = mip.constraint();
+      cons2.add_variable(bigramvar[i], 1);
+      cons2.add_variable(grid[p][b.a.word][b.a.start + 1], 1);
+      for (int pp = 0; pp < npos; pp++) {
+        if (p == pp) continue;
+        cons2.add_variable(grid[pp][b.b.word][b.b.start + 1], 1);
+      }
+      cons2.commit(0, 2);
     }
   }
 
