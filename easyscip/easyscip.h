@@ -33,6 +33,12 @@ class Variable {
   friend MIPSolver;
 };
 
+class NullVariable : public Variable {
+ public:
+  NullVariable() : Variable() {
+  }
+};
+
 class BinaryVariable : public Variable {
  protected:
   BinaryVariable(SCIP *scip, double objective, std::string name) {
@@ -93,10 +99,15 @@ class EmptyConstraint : public BaseConstraint {
 class MIPConstraint : public BaseConstraint {
  public:
   virtual void add_variable(Variable& var, double val) {
-    vars_.push_back(var.var_);
-    vals_.push_back(val);
+    if (var.var_ != NULL) {
+      vars_.push_back(var.var_);
+      vals_.push_back(val);
+    }
   }
   virtual void commit(double lower_bound, double upper_bound) {
+    if (vars_.empty()) {
+      return;
+    }
     SCIP_VAR **vars = new SCIP_VAR*[vars_.size()];
     SCIP_Real *vals = new SCIP_Real[vals_.size()];
     copy(vars_.begin(), vars_.end(), vars);
@@ -169,7 +180,11 @@ class MIPSolution : public BaseSolution {
     return SCIPgetSolOrigObj(scip_, sol_);
   }
   virtual double value(Variable& var) {
-    return SCIPgetSolVal(scip_, sol_, var.var_);
+    if (var.var_ == NULL) {
+      return 0.0;
+    } else {
+      return SCIPgetSolVal(scip_, sol_, var.var_);
+    }
   }
   virtual bool is_optimal() {
     return SCIPgetStatus(scip_) == SCIP_STATUS_OPTIMAL;
@@ -191,7 +206,11 @@ class LPSolution : public BaseSolution {
     return 0;
   }
   virtual double value(Variable& var) {
-    return SCIPgetVarSol(scip_, var.var_);
+    if (var.var_ == NULL) {
+      return 0.0;
+    } else {
+      return SCIPgetVarSol(scip_, var.var_);
+    }
   }
   virtual bool is_optimal() {
     return SCIPgetStatus(scip_) == SCIP_STATUS_OPTIMAL;

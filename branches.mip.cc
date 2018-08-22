@@ -33,7 +33,11 @@ int main() {
   for (int j = 0; j < h; j++) {
     for (int i = 0; i < w; i++) {
       for (int g = 0; g < gs; g++) {
-        grid[j][i].push_back(mip.binary_variable(1));
+        if (i != groups[g].i && j != groups[g].j) {
+          grid[j][i].push_back(NullVariable());
+        } else {
+          grid[j][i].push_back(mip.binary_variable(abs(j - groups[g].j) + abs(i - groups[g].i)));
+        }
       }
     }
   }
