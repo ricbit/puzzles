@@ -13,7 +13,7 @@ struct Group {
 };
 
 template<typename T>
-bool valid_block(T board, int jn, int jj, int in, int ii) {
+bool valid_block(T &board, int jn, int jj, int in, int ii) {
   int count = 0;
   for (int j2 = min(jn, jj); j2 <= max(jn, jj); j2++) {
     for (int i2 = min(in, ii); i2 <= max(in, ii); i2++) {
@@ -25,10 +25,19 @@ bool valid_block(T board, int jn, int jj, int in, int ii) {
   return count == 1;
 }
 
+int distance(int j, int i, Group &g) {
+  return abs(j - g.j) + abs(i - g.i);
+}
+
 template<typename T>
-bool valid_tile(T board, int j, int i, Group &g, int w, int h) {
-  return valid(i, j, w, h) &&
-    valid_block(board, g.j, j, g.i, i);
+bool valid_tile(T &board, int j, int i, Group &g, int w, int h) {
+  if ((i != g.i && j != g.j) ||
+      (i == g.i && j == g.j) ||
+      !valid(i, j, w, h) ||
+      !valid_block(board, g.j, j, g.i, i)) {
+    return false;
+  }
+  return distance(j, i, g) <= g.size;
 }
 
 int main() {
@@ -55,39 +64,14 @@ int main() {
         if (!valid_tile(board, j, i, groups[g], w, h)) {
           grid[j][i].push_back(NullVariable());
         } else {
-          grid[j][i].push_back(mip.binary_variable(
-            abs(j - groups[g].j) + abs(i - groups[g].i)));
-        }
-      }
-    }
-  }
-  // If the cell has a number, it must be zero.
-  for (int j = 0; j < h; j++) {
-    for (int i = 0; i < w; i++) {
-      if (board[j][i] != '.') {
-        for (int g = 0; g < gs; g++) {
-          auto cons = mip.constraint();
-          cons.add_variable(grid[j][i][g], 1);
-          cons.commit(0, 0);
-        }
-      }
-    }
-  }
-  // If not on the same row or column as the seed, then it must be zero.
-  static int dx[] = {1, -1, 0, 0};
-  static int dy[] = {0, 0, 1, -1};
-  for (int j = 0; j < h; j++) {
-    for (int i = 0; i < w; i++) {
-      for (int g = 0; g < gs; g++) {
-        if (j != groups[g].j && i != groups[g].i) {
-          auto cons = mip.constraint();
-          cons.add_variable(grid[j][i][g], 1);
-          cons.commit(0, 0);
+          grid[j][i].push_back(mip.binary_variable(distance(j, i, groups[g])));
         }
       }
     }
   }
   // Every free cell must have exactly one branch.
+  static int dx[] = {1, -1, 0, 0};
+  static int dy[] = {0, 0, 1, -1};
   for (int j = 0; j < h; j++) {
     for (int i = 0; i < w; i++) {
       if (board[j][i] != '.') {
@@ -118,8 +102,7 @@ int main() {
     auto cons = mip.constraint();
     for (int j = 0; j < h; j++) {
       for (int i = 0; i < w; i++) {
-        cons.add_variable(grid[j][i][g],
-          abs(j - groups[g].j) + abs(i - groups[g].i));
+        cons.add_variable(grid[j][i][g], distance(j, i, groups[g]));
       }
     }
     cons.commit(groups[g].size, groups[g].size);
