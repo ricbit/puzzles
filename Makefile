@@ -1,5 +1,5 @@
 PUZZLES = akari takuzu stars hashi slither nurikabe chaos domino suguru \
-          sugurugen torto branches
+          torto branches
 OPT = -m64 -mtune=native -fomit-frame-pointer -O3 -Wall -g
 all : $(PUZZLES)
 
