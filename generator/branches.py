@@ -6,22 +6,24 @@ h = int(sys.argv[2])
 
 grid = [[-1] * w for _ in xrange(h)]
 
-def count(grid):
-  ans = 0
+def iter_empty(grid):
+  pos = 0
   for j in xrange(h):
     for i in xrange(w):
       if grid[j][i] == -1:
-        ans += 1
+        yield (j, i, pos)
+        pos += 1
+
+def count(grid):
+  ans = 0
+  for j, i, pos in iter_empty(grid):
+    ans = pos + 1
   return ans
 
 def find(grid, x):
-  ans = 0
-  for j in xrange(h):
-    for i in xrange(w):
-      if grid[j][i] == -1:
-        if x == ans:
-          return (j, i)
-        ans += 1
+  for j, i, pos in iter_empty(grid):
+    if x == pos:
+      return (j, i)
   return None
 
 alld = [(1,0), (0,1), (-1,0), (0,-1)]
