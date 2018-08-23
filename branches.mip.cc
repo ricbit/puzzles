@@ -12,6 +12,25 @@ struct Group {
   int size, j, i;
 };
 
+template<typename T>
+bool valid_block(T board, int jn, int jj, int in, int ii) {
+  int count = 0;
+  for (int j2 = min(jn, jj); j2 <= max(jn, jj); j2++) {
+    for (int i2 = min(in, ii); i2 <= max(in, ii); i2++) {
+      if (board[j2][i2] != '.') {
+        count++;
+      }
+    }
+  }
+  return count == 1;
+}
+
+template<typename T>
+bool valid_tile(T board, int j, int i, Group &g, int w, int h) {
+  return valid(i, j, w, h) &&
+    valid_block(board, g.j, j, g.i, i);
+}
+
 int main() {
   int w, h, dummy;
   cin >> w >> h >> dummy;
@@ -33,10 +52,11 @@ int main() {
   for (int j = 0; j < h; j++) {
     for (int i = 0; i < w; i++) {
       for (int g = 0; g < gs; g++) {
-        if (i != groups[g].i && j != groups[g].j) {
+        if (!valid_tile(board, j, i, groups[g], w, h)) {
           grid[j][i].push_back(NullVariable());
         } else {
-          grid[j][i].push_back(mip.binary_variable(abs(j - groups[g].j) + abs(i - groups[g].i)));
+          grid[j][i].push_back(mip.binary_variable(
+            abs(j - groups[g].j) + abs(i - groups[g].i)));
         }
       }
     }
@@ -79,20 +99,9 @@ int main() {
           for (int d = 0; d < 4; d++) {
             int jj = groups[g].j + dy[d] * p;
             int ii = groups[g].i + dx[d] * p;
-            if (valid(ii, jj, w, h)) {
+            if (valid_tile(board, jj, ii, groups[g], w, h)) {
               int jn = groups[g].j + dy[d];
               int in = groups[g].i + dx[d];
-              int count = 0;
-              for (int j2 = min(jn, jj); j2 <= max(jn, jj); j2++) {
-                for (int i2 = min(in, ii); i2 <= max(in, ii); i2++) {
-                  if (board[j2][i2] != '.') {
-                    count++;
-                  }
-                }
-              }
-              if (count > 0) {
-                continue;
-              }
               if ((i == ii && j >= min(jn, jj) && j <= max(jn, jj)) ||
                   (j == jj && i >= min(in, ii) && i <= max(in, ii))) {
                 cons.add_variable(grid[jj][ii][g], 1);
