@@ -99,5 +99,5 @@ Rules:
 * Branches only grow in horizontal and vertical.
 * Every cell must have a branch.
 
-![Branches puzzle unsolved](images/branches.unsolved.gif) ![Branches puzzle solved](images/branches.solved.gif)
+![Branches puzzle unsolved](images/branches.unsolved.png) ![Branches puzzle solved](images/branches.solved.png)
 
