@@ -92,7 +92,7 @@ Rules:
 
 ![Suguru puzzle unsolved](images/suguru.unsolved.gif) ![Suguru puzzle solved](images/suguru.solved.gif)
 
-## Branches
+## Branches (Four Winds)
 
 Rules:
 * Every seed must have branches whose sum length is equal to the number.

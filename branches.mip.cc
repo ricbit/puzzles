@@ -52,7 +52,9 @@ int main() {
   for (int j = 0; j < h; j++) {
     for (int i = 0; i < w; i++) {
       if (board[j][i] != '.') {
-        groups.push_back(Group{board[j][i] - '0', j, i});
+        int g = board[j][i] <= '9' ?
+            board[j][i] - '0' : board[j][i] - 'A' + 10;
+        groups.push_back(Group{g, j, i});
       }
     }
   }
@@ -130,7 +132,8 @@ int main() {
     }
   }
   for (int g = 0; g < gs; g++) {
-    out[groups[g].j][groups[g].i] = '0' + groups[g].size;
+    out[groups[g].j][groups[g].i] = groups[g].size > 9 ?
+      'A' + groups[g].size - 10 : '0' + groups[g].size;
   }
   for (int j = 0; j < h; j++) {
     for (int i = 0; i < w; i++) {
