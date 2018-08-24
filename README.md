@@ -92,3 +92,12 @@ Rules:
 
 ![Suguru puzzle unsolved](images/suguru.unsolved.gif) ![Suguru puzzle solved](images/suguru.solved.gif)
 
+## Branches
+
+Rules:
+* Every seed must have branches whose sum length is equal to the number.
+* Branches only grow in horizontal and vertical.
+* Every cell must have a branch.
+
+![Branches puzzle unsolved](images/branches.unsolved.gif) ![Branches puzzle solved](images/branches.solved.gif)
+
