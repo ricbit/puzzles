@@ -1,4 +1,5 @@
 #include <iostream>
+#include <array>
 #include "exactcover/exactcover.h"
 
 using namespace std;
@@ -11,7 +12,7 @@ struct Group {
   int size, j, i;
 };
 
-typedef unsigned char Partition[4];
+typedef array<int, 4> Partition;
 
 void print(Partition p) {
   for (int d = 0; d < 4; d++) {
@@ -27,12 +28,11 @@ struct Row {
 
 template<typename T>
 void iter_partitions(int size, T func) {
-  Partition p;
   for (int pn = 0; pn <= size; pn++) {
     for (int pe = 0; pe <= size - pn; pe++) {
       for (int ps = 0; ps <= size - pn - pe; ps++) {
         int pw = size - pn - pe - ps;
-        p[0] = pn; p[1] = pe; p[2] = ps; p[3] = pw;
+        Partition p{pn, pe, ps, pw};
         func(p);
       }
     }
@@ -43,17 +43,17 @@ int dx[] = {0, 1, 0, -1};
 int dy[] = {-1, 0, 1, 0};
 
 template<typename T>
-void iter_tile(vector<string> &board, Group &g, int w, int h, Partition p, T func) {
+void iter_tile(vector<string> &board, Group &g, int w, int h, Partition &p, T func) {
   for (int d = 0; d < 4; d++) {
     for (int i = 1; i <= p[d]; i++) {
-      func(g.j + dy[d] * i, g.i + dx[d] * i);
+      func(g.j + dy[d] * i, g.i + dx[d] * i, i == p[d]);
     }
   }
 }
 
-bool valid_tile(vector<string> &board, Group &g, int w, int h, Partition p) {
+bool valid_tile(vector<string> &board, Group &g, int w, int h, Partition &p) {
   bool ans = true;
-  iter_tile(board, g, w, h, p, [&](int j, int i) {
+  iter_tile(board, g, w, h, p, [&](int j, int i, bool edge) {
     if (!valid(j, i, w, h) || board[j][i] != '.') {
       ans = false;
     }
@@ -86,20 +86,15 @@ int main() {
   vector<vector<bool>> mat;
   vector<Row> rows;
   for (unsigned short g = 0; g < gs; g++) {
-    iter_partitions(groups[g].size, [&](Partition p) {
+    iter_partitions(groups[g].size, [&](Partition &p) {
       if (valid_tile(board, groups[g], w, h, p)) {
         vector<bool> row(gs + is, false);
         row[g] = true;
-        iter_tile(board, groups[g], w, h, p, [&](int j, int i) {
+        iter_tile(board, groups[g], w, h, p, [&](int j, int i, bool edge) {
           row[gs + index[j][i]] = true;
         });
         mat.push_back(row);
-        Row r;
-        r.group = g;
-        for (int d = 0; d < 4; d++) {
-          r.partition[d] = p[d];
-        }
-        rows.push_back(r);
+        rows.push_back(Row{g, p});
       }
     });
   }
@@ -108,24 +103,17 @@ int main() {
   exactcover(mat, [&](const vector<int>& solution) {
     vector<vector<char>> out(h, vector<char>(w, '.'));
     for (int row : solution) {
-      for (int d = 0; d < 4; d++) {
-        Partition &p = rows[row].partition;
-        if (p[d] == 0) {
-          continue;
+      Group &g = groups[rows[row].group];
+      Partition &p = rows[row].partition;
+      iter_tile(board, g, w, h, p, [&](int jj, int ii, bool edge) {
+        if (!edge) {
+          out[jj][ii] = ii == g.i ? '|' : '-';
+        } else {
+          out[jj][ii] = ii < g.i ? '<' : (
+                        ii > g.i ? '>' : (
+                        jj < g.j ? '^' : 'v'));
         }
-        for (int i = 1; i <= p[d]; i++) {
-          Group &g = groups[rows[row].group];
-          int jj = g.j + dy[d] * i;
-          int ii = g.i + dx[d] * i;
-          if (i != p[d]) {
-            out[jj][ii] = ii == g.i ? '|' : '-';
-          } else {
-            out[jj][ii] = ii < g.i ? '<' : (
-                          ii > g.i ? '>' : (
-                          jj < g.j ? '^' : 'v'));
-          }
-        }
-      }
+      });
     }
     for (int g = 0; g < gs; g++) {
       out[groups[g].j][groups[g].i] = groups[g].size > 9 ?
