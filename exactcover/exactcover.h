@@ -10,13 +10,13 @@ struct node {
   node(): size(0) {}
 };
 
-typedef vector<bool> vb;
-typedef vector<vb> vvb;
+typedef std::vector<bool> vb;
+typedef std::vector<vb> vvb;
 
 struct count_solutions {
   int total;
   count_solutions(): total(0) {}
-  void operator()(const vector<int>& solution) {
+  void operator()(const std::vector<int>& solution) {
     total++;
   }
 };
@@ -25,7 +25,7 @@ template<typename T>
 struct _exactcover {
   int w, h;
   T& callback;
-  vector<int> solution;
+  std::vector<int> solution;
   node *root;
 
   _exactcover(const vvb& mat, T& callback_)
@@ -35,7 +35,7 @@ struct _exactcover {
     root->left = root;
     root->right = root;
     root->name = -1000000;
-    vector<node*> head(w);
+    std::vector<node*> head(w);
     for (int i = 0; i < w; i++) {
       node* next = head[i] = getnode();
       next->right = root;
@@ -120,7 +120,7 @@ struct _exactcover {
       return;
     }
 
-    int minvalue = numeric_limits<int>::max();
+    int minvalue = std::numeric_limits<int>::max();
     node* mincol = root;
     for (node* n = root->right; n != root; n = n->right) {
       if (n->size < minvalue) {
@@ -147,7 +147,7 @@ struct _exactcover {
 };
 
 template<class T>
-void exactcover(const vvb& mat, T& callback) {
+void exactcover(const vvb& mat, T callback) {
   _exactcover<T> cover(mat, callback);
   cover.solve();
 }
