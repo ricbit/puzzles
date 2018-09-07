@@ -1,20 +1,23 @@
-PUZZLES = akari takuzu stars hashi slither nurikabe chaos domino suguru \
-          torto branches branchesc agents agentsm
+PUZZLES = akari.mip takuzu.mip stars.cover hashi.cp slither.cp nurikabe.mip \
+          chaos.cover domino.cover suguru.mip torto.mip branches.mip \
+          branches.cover agents.greedy agents.mip snail.human
 OPT = -m64 -mtune=native -fomit-frame-pointer -Wall -g -O3
 all : $(PUZZLES)
 
-
 clear :
-	rm $(PUZZLES)
+	rm -f $(PUZZLES) log.txt lixo *.dot
 
-% : %.cover.cc
-	g++ --std=c++11 $< -o $@ $(OPT)
+%.cover : %.cover.cc
+	g++ --std=c++17 $< -o $@ $(OPT)
 
-% : %.greedy.cc
-	g++ --std=c++11 $< -o $@ $(OPT)
+%.human : %.human.cc
+	g++ --std=c++17 $< -o $@ $(OPT)
 
-% : %.cp.cc
-	g++ --std=c++11 $< -o $@ $(OPT)
+%.greedy : %.greedy.cc
+	g++ --std=c++17 $< -o $@ $(OPT)
 
-% : %.mip.cc easyscip/easyscip.h
-	g++ -std=c++11 $< -o $@ $(OPT) -lm -lscip
+%.cp : %.cp.cc
+	g++ --std=c++17 $< -o $@ $(OPT)
+
+%.mip : %.mip.cc easyscip/easyscip.h
+	g++ -std=c++17 $< -o $@ $(OPT) -lm -lscip
