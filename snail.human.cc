@@ -63,7 +63,7 @@ struct Path {
     curx += dx[dir];
     cury += dy[dir];
   }
-  optional<int> move(int j, int i, int dir) {
+  optional<int> move(int j, int i, int dir) const {
     int nj = j + dy[dir];
     int ni = i + dx[dir];
     if (ni < 0 || ni >= n || nj < 0 || nj >= n) {
@@ -135,29 +135,78 @@ struct Cell {
   optional<int> value;
 };
 
-struct Snail {
-  Snail(int n_, const vector<string>& grid) 
-      : n(n_), pos_(n * n, Cell(n)), path(n) {
-    for (int j = 0; j < n; j++) {
-      for (int i = 0; i < n; i++) {
-        if (grid[j][i] != '.') {
-          pos(j, i).value = grid[j][i] - '0';
-          filter_given(pos(j, i));
-        }
-      }
-    }
-    pos(0).maybe = set<Maybe>{Maybe{1, 1}};
-    pos(n * n - 1).maybe = set<Maybe>{Maybe{3, n}};
-    forward_maybe();
-    backward_maybe();
-    //forward_maybe();
-    print_current();
+struct State {
+  State(const Path &path_)
+      : n(path_.n), pos_(n * n, Cell(n)), path(path_) {
   }
   Cell &pos(int i) {
     return pos_[i];
   }
   Cell &pos(int j, int i) {
     return pos_[path.line[j][i]];
+  }
+  int n;
+  vector<Cell> pos_;
+  const Path &path;
+};
+
+struct StatePrinter {
+  StatePrinter(const Path &path_) : path(path_) {
+  }
+  string border(int j, int i) {
+    ostringstream oss;
+    const static string name[4]{"right", "bottom", "left", "top"};
+    for (int d = 1; d <= 4; d++) {
+      auto coord = path.move(j, i, d % 4);
+      oss << "border-" << name[d % 4] << "-width: ";
+      oss << (coord && (abs(*coord - path.line[j][i]) == 1) ? 1 : 3);
+      oss << "px;";
+    }
+    return oss.str();
+  }
+  string print(State &state) {
+    oss << "<table>";
+    for (int j = 0; j < path.n; j++) {
+      oss << "<tr>";
+      for (int i = 0; i < path.n; i++) {
+        oss << "<td style=\"border-style: solid; border-color: black;";
+        border(j, i);
+        oss << "\"><div class=\"content\">";
+        oss << "<div class=\"maybe-values\">";
+        oss << state.pos(j, i).maybe_values() << "</div>";
+        oss << "<div class=\"value\">";
+        oss << state.pos(j, i).print_value() << "</div>";
+        oss << "<div class=\"maybe-groups\">";
+        oss << state.pos(j, i).maybe_groups() << "</div>";
+        oss << "</div></td>";
+      }
+      oss << "</tr>";
+    }
+    oss << "</table>";
+    return oss.str();
+  }
+  const Path &path;
+  ostringstream oss;
+};
+
+struct Snail {
+  Snail(int n_, const vector<string>& grid_) 
+      : n(n_), path(n), state(path), grid(grid_) {
+    for (int j = 0; j < n; j++) {
+      for (int i = 0; i < n; i++) {
+        if (grid[j][i] != '.') {
+          state.pos(j, i).value = grid[j][i] - '0';
+          filter_given(state.pos(j, i));
+        }
+      }
+    }
+    state.pos(0).maybe = set<Maybe>{Maybe{1, 1}};
+    state.pos(n * n - 1).maybe = set<Maybe>{Maybe{3, n}};
+    forward_maybe();
+    backward_maybe();
+    //forward_maybe();
+    StatePrinter printer(path);
+    cout << printer.print(state);
   }
   void filter_given(Cell &cell) {
     set<Maybe> maybe_copy(cell.maybe.begin(), cell.maybe.end());
@@ -169,8 +218,8 @@ struct Snail {
   }
   bool search_backwards(int start, const Maybe &m) {
     for (int j = start; j >= 0; j--) {
-      auto &prev = pos(j).maybe;
-      auto &prev_value = pos(j).value;
+      auto &prev = state.pos(j).maybe;
+      auto &prev_value = state.pos(j).value;
       if (prev.find(m) != prev.end() && prev_value) {
         return false;
       }
@@ -185,8 +234,8 @@ struct Snail {
   }
   bool search_forwards(int start, const Maybe &m) {
     for (int j = start; j < n * n; j++) {
-      auto &prev = pos(j).maybe;
-      auto &prev_value = pos(j).value;
+      auto &prev = state.pos(j).maybe;
+      auto &prev_value = state.pos(j).value;
       if (prev.find(m) != prev.end() && prev_value) {
         return false;
       }
@@ -201,7 +250,7 @@ struct Snail {
   }
   void forward_maybe() {
     for (int i = 1; i < n * n; i++) {
-      auto &cur = pos(i).maybe;
+      auto &cur = state.pos(i).maybe;
       set<Maybe> maybe_copy(cur.begin(), cur.end());
       for (auto &m : maybe_copy) {
         if (!search_backwards(i - 1, m)) {
@@ -212,7 +261,7 @@ struct Snail {
   }
   void backward_maybe() {
     for (int i = n * n - 2; i >= 0; i--) {
-      auto &cur = pos(i).maybe;
+      auto &cur = state.pos(i).maybe;
       set<Maybe> maybe_copy(cur.begin(), cur.end());
       for (auto &m : maybe_copy) {
         if (!search_forwards(i + 1, m)) {
@@ -221,39 +270,10 @@ struct Snail {
       }
     }
   }
-  string border(int j, int i) {
-    ostringstream oss;
-    const static string name[4]{"right", "bottom", "left", "top"};
-    for (int d = 1; d <= 4; d++) {
-      auto coord = path.move(j, i, d % 4);
-      oss << "border-" << name[d % 4] << "-width: ";
-      oss << (coord && (abs(*coord - path.line[j][i]) == 1) ? 1 : 3);
-      oss << "px;";
-    }
-    return oss.str();
-  }
-  void print_current() {
-    cout << "<table>";
-    for (int j = 0; j < n; j++) {
-      cout << "<tr>";
-      for (int i = 0; i < n; i++) {
-        cout << "<td style=\"border-style: solid; border-color: black;";
-        cout << border(j, i) << "\"><div class=\"content\">";
-        cout << "<div class=\"maybe-values\">";
-        cout << pos(j, i).maybe_values() << "</div>";
-        cout << "<div class=\"value\">";
-        cout << pos(j, i).print_value() << "</div>";
-        cout << "<div class=\"maybe-groups\">";
-        cout << pos(j, i).maybe_groups() << "</div>";
-        cout << "</div></td>";
-      }
-      cout << "</tr>";
-    }
-    cout << "</table>";
-  }
   int n;
-  vector<Cell> pos_;
   Path path;
+  State state;
+  const vector<string> &grid;
 };
 
 int main() {
