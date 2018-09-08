@@ -429,6 +429,55 @@ struct OnlyValue : public Strategy {
   }
 };
 
+struct OnlyGroup : public Strategy {
+  int digit, group;
+  const vector<int> line;
+  string line_name;
+  int line_pos;
+  OnlyGroup(int d, int g, const vector<int> line_,
+            string line_name_, int pos_)
+      : digit(d), group(g), line(line_),
+        line_name(line_name_), line_pos(pos_) {
+  }
+  virtual string name() {
+    ostringstream oss;
+    oss << line_name << " " << line_pos << " only has ";
+    oss << digit << " in group " << group;
+    return oss.str();
+  }
+  virtual map<int, Cell> strategy(State &state) {
+    Filter filter(state);
+    if (state.has_value(line, digit)) {
+      skip = true;
+      return {};
+    }
+    Maybe m{digit, group};
+    int line_count = state.count_maybe(line, m);
+    int count = 0;
+    for (int i : line) {
+      for (auto &m : state.pos(i).maybe) {
+        if (m.value == digit) {
+          count++;
+        }
+      }
+    }
+    if (line_count != count) {
+      return {};
+    }
+    set<int> skipline(line.begin(), line.end());
+    for (int i : state.path.forward()) {
+      if (skipline.find(i) == skipline.end()) {
+        Cell cell = state.pos(i).filter_maybe([&](const Maybe &m) {
+          return !(m.value == digit && m.group == group);
+        });
+        filter.put(i, cell);
+      }
+    }
+    skip = true;
+    return filter.flush();
+  }
+};
+
 struct SingleLine : public Strategy {
   int digit;
   const vector<int> line;
@@ -588,6 +637,8 @@ struct Snail {
         for (int i = 0; i < n; i++) {
           hard.push_back(new OnlyValue(d, g, path.row(i), "row", i));
           hard.push_back(new OnlyValue(d, g, path.column(i), "column", i));
+          hard.push_back(new OnlyGroup(d, g, path.row(i), "Row", i));
+          hard.push_back(new OnlyGroup(d, g, path.column(i), "Column", i));
         }
       }
     }
