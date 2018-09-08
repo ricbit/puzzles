@@ -5,6 +5,8 @@
 #include <optional>
 #include <sstream>
 #include <map>
+#include <numeric>
+#include <algorithm>
 
 using namespace std;
 
@@ -76,6 +78,20 @@ struct Path {
       return line[nj][ni];
     }
   }
+  vector<int> column(int c) {
+    vector<int> ans;
+    for (int i = 0; i < n; i++) {
+      ans.push_back(line[i][c]);
+    }
+    return ans;
+  }
+  vector<int> row(int r) const {
+    vector<int> ans;
+    for (int i = 0; i < n; i++) {
+      ans.push_back(line[r][i]);
+    }
+    return ans;
+  }
   void print() {
     for (int j = 0; j < n; j++) {
       for (int i = 0; i < n; i++) {
@@ -83,6 +99,20 @@ struct Path {
       }
       cout << "\n";
     }
+  }
+  vector<int> forward(int start) const {
+    vector<int> ans;
+    for (int i = start; i < n * n; i++) {
+      ans.push_back(i);
+    }
+    return ans;
+  }
+  vector<int> backward(int start) const {
+    vector<int> ans;
+    for (int i = start; i >= 0; i--) {
+      ans.push_back(i);
+    }
+    return ans;
   }
   int n;
   vector<Coord> grid;
@@ -167,9 +197,9 @@ struct State {
   Cell &pos(int j, int i) {
     return pos_[path.line[j][i]];
   }
-  bool row_has_value(int row, int value) {
-    for (int i = 0; i < n; i++) {
-      if (pos(row, i).value == value) {
+  bool has_value(const vector<int>& line, int value) {
+    for (int i : line) {
+      if (pos(i).value == value) {
         return true;
       }
     }
@@ -308,80 +338,36 @@ struct RemoveCross : public Strategy {
   }
 };
 
-struct SingleColumn : public Strategy {
-  int digit, col;
-  SingleColumn(int d, int c) : digit(d), col(c) {
+struct SingleLine : public Strategy {
+  int digit;
+  const vector<int> line;
+  string line_name;
+  int line_pos;
+  SingleLine(int d, const vector<int> line_, string line_name_, int pos_)
+      : digit(d), line(line_), line_name(line_name_), line_pos(pos_) {
   }
   virtual string name() {
     ostringstream oss;
-    oss << "Single " << digit << " in column " << col;
+    oss << "Single " << digit << " in " << line_name << " " << line_pos;
     return oss.str();
   }
   virtual map<int, Cell> strategy(State &state) {
     Filter filter(state);
-    int count = 0;
-    for (int j = 0; j < state.n; j++) {
-      if (state.pos(j, col).value && *state.pos(j, col).value == digit) {
-        skip = true;
-        return {};
-      }
-      bool has = false;
-      for (auto &m : state.pos(j, col).maybe) {
-        if (m.value == digit) {
-          has = true;
-        }
-      }
-      if (has) {
-        count++;
-      }
-    }
-    if (count == 1) {
-      for (int j = 0; j < state.n; j++) {
-        bool has = false;
-        set<Maybe> maybe;
-        for (auto &m : state.pos(j, col).maybe) {
-          if (m.value == digit) {
-            has = true;
-            maybe.insert(m);
-          }
-        }
-        if (has) {
-          Cell cell{maybe, digit};
-          filter.put(j, col, cell);
-          skip = true;
-        }
-      }
-    }
-    return filter.flush();
-  }
-};
-
-struct SingleRow : public Strategy {
-  int digit, row;
-  SingleRow(int d, int r) : digit(d), row(r) {
-  }
-  virtual string name() {
-    ostringstream oss;
-    oss << "Single " << digit << " in row " << row;
-    return oss.str();
-  }
-  virtual map<int, Cell> strategy(State &state) {
-    Filter filter(state);
-    if (state.row_has_value(row, digit)) {
+    if (state.has_value(line, digit)) {
       skip = true;
       return {};
     }
     int count = 0;
-    for (int j = 0; j < state.n; j++) {
-      if (state.pos(row, j).has_maybe_value(digit)) {
+    for (int j : line) {
+      if (state.pos(j).has_maybe_value(digit)) {
         count++;
       }
     }
     if (count == 1) {
-      for (int j = 0; j < state.n; j++) {
+      for (int j : line) {
         bool has = false;
         set<Maybe> maybe;
-        for (auto &m : state.pos(row, j).maybe) {
+        for (auto &m : state.pos(j).maybe) {
           if (m.value == digit) {
             has = true;
             maybe.insert(m);
@@ -389,7 +375,7 @@ struct SingleRow : public Strategy {
         }
         if (has) {
           Cell cell{maybe, digit};
-          filter.put(row, j, cell);
+          filter.put(j, cell);
           skip = true;
         }
       }
@@ -404,7 +390,6 @@ struct ForwardMaybe : public Strategy {
   }
   virtual map<int, Cell> strategy(State &state) {
     Filter filter(state);
-    auto save_pos = state.pos_;
     for (int i = 1; i < state.n * state.n; i++) {
       if (state.pos(i).value && state.pos(i).maybe.size() == 1) {
         continue;
@@ -414,15 +399,9 @@ struct ForwardMaybe : public Strategy {
         if (search_backwards(state, i - 1, m)) {
           cell.maybe.insert(m);
         }
-        if (state.pos(i).value && *state.pos(i).value == 1 &&
-            m.value == 1 && m.group == 1) {
-          cell.maybe.insert(m);
-        }
       }
       filter.put(i, cell);
-      state.pos(i) = cell;
     }
-    state.pos_ = save_pos;
     return filter.flush();
   }
   bool search_backwards(State &state, int start, const Maybe &m) {
@@ -443,49 +422,49 @@ struct ForwardMaybe : public Strategy {
   }
 };
 
+template<typename T>
 struct BackwardMaybe : public Strategy {
+  const vector<int> order, reverse;
+  T action;
+  BackwardMaybe(const vector<int> order_, T action_)
+    : order(order_), reverse(order.rbegin(), order.rend()), action(action_) {
+  }
   virtual string name() {
     return "Backward implication";
   }
   virtual map<int, Cell> strategy(State &state) {
     Filter filter(state);
-    auto save_pos = state.pos_;
     bool start = false;
-    for (int i = state.n * state.n - 1; i >= 0; i--) {
-      if (!start && state.pos(i).maybe.empty()) {
+    for (auto it = order.begin(); it != order.end(); ++it) {
+      if (!start && state.pos(*it).maybe.empty()) {
         continue;
       }
       if (!start) {
         start = true;
         continue;
       }
-      if (state.pos(i).value && state.pos(i).maybe.size() == 1) {
+      if (state.pos(*it).value && state.pos(*it).maybe.size() == 1) {
         continue;
       }
-      Cell cell{{}, state.pos(i).value};
-      for (auto &m : state.pos(i).maybe) {
-        if (search_forwards(state, i + 1, m)) {
-          cell.maybe.insert(m);
-        }
-        if (state.pos(i).value && *state.pos(i).value == 3 &&
-            m.value == 3 && m.group == state.n) {
+      Cell cell{{}, state.pos(*it).value};
+      for (auto &m : state.pos(*it).maybe) {
+        if (search_forwards(state, *(it - 1), m)) {
           cell.maybe.insert(m);
         }
       }
-      filter.put(i, cell);
-      state.pos(i) = cell;
+      filter.put(*it, cell);
     }
-    state.pos_ = save_pos;
     return filter.flush();
   }
   bool search_forwards(State &state, int start, const Maybe &m) {
-    for (int j = start; j < state.n * state.n; j++) {
-      auto &prev = state.pos(j).maybe;
-      auto &prev_value = state.pos(j).value;
+    auto it = find(reverse.begin(), reverse.end(), start);
+    for (; it != reverse.end(); ++it) {
+      auto &prev = state.pos(*it).maybe;
+      auto &prev_value = state.pos(*it).value;
       if (prev.find(m) != prev.end() && prev_value) {
         return false;
       }
-      if (prev.find(m.next()) != prev.end() || prev.find(m) != prev.end()) {
+      if (prev.find(action(m)) != prev.end() || prev.find(m) != prev.end()) {
         return true;
       }
       if (prev_value) {
@@ -495,6 +474,11 @@ struct BackwardMaybe : public Strategy {
     return false;
   }
 };
+
+template<typename T>
+BackwardMaybe<T> *newBackwardMaybe(const vector<int> order_, T action_) {
+  return new BackwardMaybe<T>(order_, action_);
+}
 
 struct FixFirst : public Strategy {
   virtual string name() {
@@ -534,27 +518,35 @@ struct FixLast : public Strategy {
 struct Snail {
   Snail(int n_, const vector<string>& grid) 
       : n(n_), path(n), state(path), printer(path) {
-    strategies.push_back(new AddGivens{grid});
-    strategies.push_back(new FixFirst);
-    strategies.push_back(new FixLast);
-    strategies.push_back(new ForwardMaybe);
-    strategies.push_back(new BackwardMaybe);
+    easy.push_back(new AddGivens{grid});
     for (int j = 0; j < n; j++) {
       for (int i = 0 ; i < n; i++) {
-        strategies.push_back(new RemoveCross{j, i});
+        easy.push_back(new RemoveCross{j, i});
       }
     }
-    for (int i = 1; i <= 3; i++) {
+    for (int d = 1; d <= 3; d++) {
       for (int j = 0; j < n; j++) {
-        strategies.push_back(new SingleRow{i, j});
-        strategies.push_back(new SingleColumn{i, j});
+        easy.push_back(new SingleLine{d, path.row(j), "row", j});
+        easy.push_back(new SingleLine{d, path.column(j), "column", j});
       }
     }
+    hard.push_back(new FixFirst);
+    hard.push_back(new FixLast);
+    hard.push_back(new ForwardMaybe);
+    auto prev = [](const Maybe &m) { return m.next(); };
+    hard.push_back(newBackwardMaybe(path.backward(n * n - 1), prev));
   }
   void solve() {
-    while (round());
+    while (true) {
+      if (round(easy)) {
+        continue;
+      }
+      if (!round(hard)) {
+        break;
+      }
+    }
   }
-  bool round() {
+  bool round(const vector<Strategy*> &strategies) {
     bool changed = false;
     for (auto &s : strategies) {
       if (s->skip) {
@@ -579,7 +571,7 @@ struct Snail {
   Path path;
   State state;
   StatePrinter printer;
-  vector<Strategy*> strategies;
+  vector<Strategy*> easy, hard;
 };
 
 int main() {
