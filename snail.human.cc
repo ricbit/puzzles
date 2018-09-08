@@ -100,16 +100,16 @@ struct Path {
       cout << "\n";
     }
   }
-  vector<int> forward(int start) const {
+  vector<int> forward() const {
     vector<int> ans;
-    for (int i = start; i < n * n; i++) {
+    for (int i = 0; i < n * n; i++) {
       ans.push_back(i);
     }
     return ans;
   }
-  vector<int> backward(int start) const {
+  vector<int> backward() const {
     vector<int> ans;
-    for (int i = start; i >= 0; i--) {
+    for (int i = n * n - 1; i >= 0; i--) {
       ans.push_back(i);
     }
     return ans;
@@ -204,6 +204,22 @@ struct State {
       }
     }
     return false;
+  }
+  auto first_non_empty(const vector<int>& order) {
+    auto it = order.begin();
+    while (pos(*it).maybe.empty()) {
+      ++it;
+    }
+    return it;
+  }
+  bool done() {
+    int count = 0;
+    for (int i = 0; i < n * n; i++) {
+      if (pos(i).value) {
+        count++;
+      }
+    }
+    return count == 3 * n;
   }
   int n;
   vector<Cell> pos_;
@@ -384,71 +400,34 @@ struct SingleLine : public Strategy {
   }
 };
 
-struct ForwardMaybe : public Strategy {
-  virtual string name() {
-    return "Forward implication";
-  }
-  virtual map<int, Cell> strategy(State &state) {
-    Filter filter(state);
-    for (int i = 1; i < state.n * state.n; i++) {
-      if (state.pos(i).value && state.pos(i).maybe.size() == 1) {
-        continue;
-      }
-      Cell cell{{}, state.pos(i).value};
-      for (auto &m : state.pos(i).maybe) {
-        if (search_backwards(state, i - 1, m)) {
-          cell.maybe.insert(m);
-        }
-      }
-      filter.put(i, cell);
-    }
-    return filter.flush();
-  }
-  bool search_backwards(State &state, int start, const Maybe &m) {
-    for (int j = start; j >= 0; j--) {
-      auto &prev = state.pos(j).maybe;
-      auto &prev_value = state.pos(j).value;
-      if (prev.find(m) != prev.end() && prev_value) {
-        return false;
-      }
-      if (prev.find(m.prev()) != prev.end() || prev.find(m) != prev.end()) {
-        return true;
-      }
-      if (prev_value) {
-        return false;
-      }
-    }
-    return false;
-  }
-};
-
 template<typename T>
-struct BackwardMaybe : public Strategy {
+struct SequenceImplication : public Strategy {
   const vector<int> order, reverse;
   T action;
-  BackwardMaybe(const vector<int> order_, T action_)
-    : order(order_), reverse(order.rbegin(), order.rend()), action(action_) {
+  string dir_name;
+  SequenceImplication(const vector<int> order_, T action_, string name_)
+    : order(order_), reverse(order.rbegin(), order.rend()),
+      action(action_), dir_name(name_) {
   }
   virtual string name() {
-    return "Backward implication";
+    return dir_name + " implication";
+  }
+  auto begin(State &state) {
+    auto it = order.begin();
+    while (state.pos(*it).maybe.empty()) {
+      ++it;
+    }
+    return ++it;
   }
   virtual map<int, Cell> strategy(State &state) {
     Filter filter(state);
-    bool start = false;
-    for (auto it = order.begin(); it != order.end(); ++it) {
-      if (!start && state.pos(*it).maybe.empty()) {
-        continue;
-      }
-      if (!start) {
-        start = true;
-        continue;
-      }
+    for (auto it = begin(state); it != order.end(); ++it) {
       if (state.pos(*it).value && state.pos(*it).maybe.size() == 1) {
         continue;
       }
       Cell cell{{}, state.pos(*it).value};
       for (auto &m : state.pos(*it).maybe) {
-        if (search_forwards(state, *(it - 1), m)) {
+        if (search(state, *(it - 1), m)) {
           cell.maybe.insert(m);
         }
       }
@@ -456,18 +435,19 @@ struct BackwardMaybe : public Strategy {
     }
     return filter.flush();
   }
-  bool search_forwards(State &state, int start, const Maybe &m) {
+  bool search(State &state, int start, const Maybe &m) {
     auto it = find(reverse.begin(), reverse.end(), start);
+    auto next = action(m);
     for (; it != reverse.end(); ++it) {
-      auto &prev = state.pos(*it).maybe;
-      auto &prev_value = state.pos(*it).value;
-      if (prev.find(m) != prev.end() && prev_value) {
+      auto &succ = state.pos(*it).maybe;
+      auto &succ_value = state.pos(*it).value;
+      if (succ.find(m) != succ.end() && succ_value) {
         return false;
       }
-      if (prev.find(action(m)) != prev.end() || prev.find(m) != prev.end()) {
+      if (succ.find(next) != succ.end() || succ.find(m) != succ.end()) {
         return true;
       }
-      if (prev_value) {
+      if (succ_value) {
         return false;
       }
     }
@@ -476,43 +456,36 @@ struct BackwardMaybe : public Strategy {
 };
 
 template<typename T>
-BackwardMaybe<T> *newBackwardMaybe(const vector<int> order_, T action_) {
-  return new BackwardMaybe<T>(order_, action_);
+SequenceImplication<T> *newSequenceImplication(
+    const vector<int> order_, T action_, string name_){
+  return new SequenceImplication<T>(order_, action_, name_);
 }
 
-struct FixFirst : public Strategy {
+struct FixEndpoint : public Strategy {
+  const vector<int> order;
+  const set<Maybe> endpoint;
+  string endpoint_name;
+  FixEndpoint(const vector<int> order_,
+              const set<Maybe> endpoint_, string name_)
+      : order(order_), endpoint(endpoint_),
+        endpoint_name("Fix " + name_ + " cell") {
+  }
   virtual string name() {
-    return "Fix first cell";
+    return endpoint_name;
   }
   virtual map<int, Cell> strategy(State &state) {
     Filter filter(state);
-    for (int i = 0; i < state.n * state.n; i++) {
-      if (!state.pos(i).maybe.empty()) {
-        Cell cell{set<Maybe>{Maybe{1, 1}}, state.pos(i).value};
-        filter.put(i, cell);
-        break;
-      }
-    }
+    int i = *state.first_non_empty(order);
+    Cell cell{endpoint, state.pos(i).value};
+    filter.put(i, cell);
     return filter.flush();
   }
 };
 
-struct FixLast : public Strategy {
-  virtual string name() {
-    return "Fix last cell";
-  }
-  virtual map<int, Cell> strategy(State &state) {
-    Filter filter(state);
-    int last = state.n * state.n - 1;
-    for (int i = last; i >= 0; i--) {
-      if (!state.pos(i).maybe.empty()) {
-        Cell cell{set<Maybe>{Maybe{3, state.n}}, state.pos(i).value};
-        filter.put(i, cell);
-        break;
-      }
-    }
-    return filter.flush();
-  }
+enum struct Status {
+  SOLVED,
+  CHANGED,
+  UNCHANGED
 };
 
 struct Snail {
@@ -530,23 +503,29 @@ struct Snail {
         easy.push_back(new SingleLine{d, path.column(j), "column", j});
       }
     }
-    hard.push_back(new FixFirst);
-    hard.push_back(new FixLast);
-    hard.push_back(new ForwardMaybe);
-    auto prev = [](const Maybe &m) { return m.next(); };
-    hard.push_back(newBackwardMaybe(path.backward(n * n - 1), prev));
+    hard.push_back(new FixEndpoint(
+        path.forward(), set<Maybe>{Maybe{1, 1}}, "first"));
+    hard.push_back(new FixEndpoint(
+        path.backward(), set<Maybe>{Maybe{3, n}}, "last"));
+    hard.push_back(newSequenceImplication(
+        path.forward(), [](const Maybe &m){ return m.prev(); },
+        "Forward"));
+    hard.push_back(newSequenceImplication(
+        path.backward(), [](const Maybe &m){ return m.next(); },
+        "Backward"));
   }
   void solve() {
-    while (true) {
-      if (round(easy)) {
+    do {
+      auto easy_status = round(easy);
+      if (easy_status == Status::SOLVED) {
+        return;
+      }
+      if (easy_status == Status::CHANGED) {
         continue;
       }
-      if (!round(hard)) {
-        break;
-      }
-    }
+    } while (round(hard) == Status::CHANGED);
   }
-  bool round(const vector<Strategy*> &strategies) {
+  Status round(const vector<Strategy*> &strategies) {
     bool changed = false;
     for (auto &s : strategies) {
       if (s->skip) {
@@ -562,10 +541,13 @@ struct Snail {
         }
         cout << printer.print(state, ans);
         cout << "</div></div><hr>";
+        if (state.done()) {
+          return Status::SOLVED;
+        }
         changed = true;
       }
     }
-    return changed;
+    return changed ? Status::CHANGED : Status::UNCHANGED;
   }
   int n;
   Path path;
