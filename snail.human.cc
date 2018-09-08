@@ -178,16 +178,20 @@ struct StatePrinter {
     }
     return oss.str();
   }
-  string print(State &state) {
-    oss << "<table>";
+  string print(State &state, const map<int, Cell> &changed) {
+    ostringstream oss;
+    oss << "<div><table>";
     for (int j = 0; j < path.n; j++) {
       oss << "<tr>";
       for (int i = 0; i < path.n; i++) {
         oss << "<td style=\"border-style: solid; border-color: black;";
-        border(j, i);
+        oss << border(j, i);
+        if (changed.find(state.path.line[j][i]) != changed.end()) {
+          oss << "background-color: yellow;";
+        }
         oss << "\"><div class=\"content\">";
         oss << "<div class=\"maybe-values\">";
-          oss << state.pos(j, i).maybe_values() << "</div>";
+        oss << state.pos(j, i).maybe_values() << "</div>";
         oss << "<div class=\"value\">";
         oss << state.pos(j, i).print_value() << "</div>";
         oss << "<div class=\"maybe-groups\">";
@@ -196,16 +200,35 @@ struct StatePrinter {
       }
       oss << "</tr>";
     }
-    oss << "</table>\n";
+    oss << "</table></div>\n";
     return oss.str();
   }
   const Path &path;
-  ostringstream oss;
 };
 
 struct Strategy {
   virtual string name() = 0;
   virtual map<int, Cell> strategy(State &state) = 0;
+};
+
+struct Filter {
+  Filter(State &state_) : state(state_) {
+  }
+  void put(int j, int i, Cell &cell) {
+    if (state.pos(j, i) != cell) {
+      ans.insert(make_pair(state.path.line[j][i], cell));
+    }
+  }
+  void put(int i, Cell &cell) {
+    if (state.pos(i) != cell) {
+      ans.insert(make_pair(i, cell));
+    }
+  }
+  map<int, Cell> flush() {
+    return ans;
+  }
+  State &state;
+  map<int, Cell> ans;
 };
 
 struct AddGivens : public Strategy {
@@ -216,7 +239,7 @@ struct AddGivens : public Strategy {
     return "Add givens";
   }
   virtual map<int, Cell> strategy(State &state) {
-    map<int, Cell> ans;
+    Filter filter(state);
     for (int j = 0; j < state.n; j++) {
       for (int i = 0; i < state.n; i++) {
         if (grid[j][i] != '.') {
@@ -226,19 +249,74 @@ struct AddGivens : public Strategy {
               cell.maybe.insert(m);
             }
           }
-          if (state.pos(j, i) != cell) {
-            ans.insert(make_pair(state.path.line[j][i], cell));
-          }
+          filter.put(j, i, cell);
         }
       }
     }
-    return ans;
+    return filter.flush();
+  }
+};
+
+struct RemoveCross : public Strategy {
+  int bj, bi;
+  RemoveCross(int bj_, int bi_) : bj(bj_), bi(bi_) {
+  }
+  virtual string name() {
+    return "Remove from rows and columns";
+  }
+  virtual map<int, Cell> strategy(State &state) {
+    Filter filter(state);
+    if (!state.pos(bj, bi).value) {
+      return {};
+    }
+    for (int j = 0; j < state.n; j++) {
+      for (int i = 0; i < state.n; i++) {
+        if ((j == bj && i == bi) || (j != bj && i != bi)) {
+          continue;
+        }
+        Cell cell{{}, state.pos(j, i).value};
+        for (auto &m : state.pos(j, i).maybe) {
+          if (m.value != *state.pos(bj, bi).value) {
+            cell.maybe.insert(m);
+          }
+        }
+        filter.put(j, i, cell);
+      }
+    }
+    return filter.flush();
+  }
+};
+
+struct FixFirst : public Strategy {
+  virtual string name() {
+    return "Fix first cell";
+  }
+  virtual map<int, Cell> strategy(State &state) {
+    Filter filter(state);
+    Cell cell{set<Maybe>{Maybe{1, 1}}, state.pos(0).value};
+    filter.put(0, cell);
+    return filter.flush();
+  }
+};
+
+struct FixLast : public Strategy {
+  virtual string name() {
+    return "Fix last cell";
+  }
+  virtual map<int, Cell> strategy(State &state) {
+    Filter filter(state);
+    int last = state.n * state.n - 1;
+    Cell cell{
+        set<Maybe>{Maybe{3, state.n}},
+        state.pos(last).value};
+    filter.put(last, cell);
+    return filter.flush();
   }
 };
 
 struct Snail {
   Snail(int n_, const vector<string>& grid) 
-      : n(n_), path(n), state(path) {
+      : n(n_), path(n), state(path), printer(path) {
     /*for (int j = 0; j < n; j++) {
       for (int i = 0; i < n; i++) {
         if (grid[j][i] != '.') {
@@ -253,20 +331,27 @@ struct Snail {
     backward_maybe();
     //forward_maybe();
     */
-    StatePrinter printer(path);
-    cout << printer.print(state);
-    AddGivens add{grid};
-    auto ans = add.strategy(state);
-    for (auto &x : ans) {
-      state.pos(x.first) = x.second;
+    strategies.push_back(new AddGivens{grid});
+    strategies.push_back(new FixFirst);
+    strategies.push_back(new FixLast);
+    for (int j = 0; j < n; j++) {
+      for (int i = 0 ; i < n; i++) {
+        strategies.push_back(new RemoveCross{j, i});
+      }
     }
-    cout << printer.print(state);
   }
-  void filter_given(Cell &cell) {
-    set<Maybe> maybe_copy(cell.maybe.begin(), cell.maybe.end());
-    for (auto &m : maybe_copy) {
-      if (m.value != cell.value) {
-        cell.maybe.erase(m);
+  void solve() {
+    for (auto &s : strategies) {
+      auto ans = s->strategy(state);
+      if (!ans.empty()) {
+        cout << "<div class=\"strategy\"><div>" << s->name() << "</div>";
+        cout << "<div class=\"compare\">";
+        cout << printer.print(state, ans);
+        for (auto &x : ans) {
+          state.pos(x.first) = x.second;
+        }
+        cout << printer.print(state, ans);
+        cout << "</div></div><hr>";
       }
     }
   }
@@ -327,6 +412,8 @@ struct Snail {
   int n;
   Path path;
   State state;
+  StatePrinter printer;
+  vector<Strategy*> strategies;
 };
 
 int main() {
@@ -338,9 +425,13 @@ int main() {
   }
   cout << "<html>";
   cout << "<head><style>";
-  cout << "table { border-collapse: collapse; }\n";
+  cout << "table { border-collapse: collapse; margin-bottom: 20px;";
+  cout << "        margin-top: 20px; margin-right: 20px;}\n";
   cout << "td { width: 50px; height: 50px;";
   cout << "     margin: 0px; text-align: center}\n";
+  cout << ".strategy { margin-top: 20px; ";
+  cout << "    display: flex; flex-direction: column; font-size: 20px}\n";
+  cout << ".compare {display: flex;}\n";
   cout << ".content {display: flex; flex-direction: column;";
   cout << "     justify-content: space-between;}\n";
   cout << ".maybe-values, .maybe-groups {";
@@ -351,6 +442,7 @@ int main() {
   cout << ".maybe-groups {color: brown;}\n";
   cout << "</style></head><body>\n";
   Snail snail(n, grid);
+  snail.solve();
   cout << "</body></html>";
   return 0;
 }
