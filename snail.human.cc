@@ -271,13 +271,29 @@ struct StatePrinter {
           oss << "background-color: yellow;";
         }
         oss << "\"><div class=\"content\">";
-        oss << "<div class=\"maybe-values\">";
-        oss << state.pos(j, i).maybe_values() << "</div>";
-        oss << "<div class=\"value\">";
-        oss << state.pos(j, i).print_value() << "</div>";
-        oss << "<div class=\"maybe-groups\">";
-        oss << state.pos(j, i).maybe_groups() << "</div>";
-        oss << "</div></td>";
+        if (state.pos(j, i).value) {
+          oss << "<div class=\"maybe-values\">";
+          oss << state.pos(j, i).maybe_values() << "</div>";
+          oss << "<div class=\"value\">";
+          oss << state.pos(j, i).print_value() << "</div>";
+          oss << "<div class=\"maybe-groups\">";
+          oss << state.pos(j, i).maybe_groups() << "</div>";
+          oss << "</div></td>";
+        } else {
+          oss << "<div class=\"maybe-values\">";          
+          for (int d = 1; d <= 3; d++) {
+            if (state.pos(j, i).has_maybe_value(d)) {
+              oss << d << " : ";
+              for (int g = 1; g <= path.n; g++) {
+                if (state.pos(j, i).maybe.find(Maybe{d, g}) !=
+                    state.pos(j, i).maybe.end()) {
+                  oss << g << " ";
+                }
+              }
+              oss << "<br>";
+            }
+          }
+        }
       }
       oss << "</tr>";
     }
@@ -305,6 +321,9 @@ struct Filter {
     if (state.pos(i) != cell) {
       ans.insert(make_pair(i, cell));
     }
+  }
+  bool empty() {
+    return ans.empty();
   }
   map<int, Cell> flush() {
     return ans;
@@ -364,7 +383,9 @@ struct RemoveCross : public Strategy {
         filter.put(j, i, cell);
       }
     }
-    skip = true;
+    if (!filter.empty()) {
+      skip = true;
+    }
     return filter.flush();
   }
 };
@@ -508,10 +529,10 @@ SequenceImplication<T> *newSequenceImplication(
 
 struct FixEndpoint : public Strategy {
   const vector<int> order;
-  const set<Maybe> endpoint;
+  const Maybe endpoint;
   string endpoint_name;
   FixEndpoint(const vector<int> order_,
-              const set<Maybe> endpoint_, string name_)
+              const Maybe endpoint_, string name_)
       : order(order_), endpoint(endpoint_),
         endpoint_name("Fix " + name_ + " cell") {
   }
@@ -520,9 +541,13 @@ struct FixEndpoint : public Strategy {
   }
   virtual map<int, Cell> strategy(State &state) {
     Filter filter(state);
-    int i = *state.first_non_empty(order);
-    Cell cell{endpoint, state.pos(i).value};
-    filter.put(i, cell);
+    auto it = state.first_non_empty(order); 
+    while (!state.pos(*it).has_maybe_value(endpoint.value)) {
+      Cell cell{{}, state.pos(*it).value};
+      filter.put(*it++, cell);
+    }
+    Cell cell{set<Maybe>{endpoint}, state.pos(*it).value};
+    filter.put(*it, cell);
     return filter.flush();
   }
 };
@@ -549,9 +574,9 @@ struct Snail {
       }
     }
     hard.push_back(new FixEndpoint(
-        path.forward(), set<Maybe>{Maybe{1, 1}}, "first"));
+        path.forward(), Maybe{1, 1}, "first"));
     hard.push_back(new FixEndpoint(
-        path.backward(), set<Maybe>{Maybe{3, n}}, "last"));
+        path.backward(), Maybe{3, n}, "last"));
     hard.push_back(newSequenceImplication(
         path.forward(), [](const Maybe &m){ return m.prev(); },
         "Forward"));
@@ -568,7 +593,7 @@ struct Snail {
     }
   }
   void solve() {
-    do {
+    while (true) {
       auto easy_status = round(easy);
       if (easy_status == Status::SOLVED) {
         return;
@@ -576,7 +601,10 @@ struct Snail {
       if (easy_status == Status::CHANGED) {
         continue;
       }
-    } while (round(hard) == Status::CHANGED);
+      if (round(hard) != Status::CHANGED) {
+        break;
+      }
+    }
   }
   Status round(const vector<Strategy*> &strategies) {
     bool changed = false;
@@ -620,7 +648,7 @@ int main() {
   cout << "<head><style>";
   cout << "table { border-collapse: collapse; margin-bottom: 20px;";
   cout << "        margin-top: 20px; margin-right: 20px;}\n";
-  cout << "td { width: 50px; height: 50px;";
+  cout << "td { width: 70px; height: 70px;";
   cout << "     margin: 0px; text-align: center}\n";
   cout << ".strategy { margin-top: 20px; ";
   cout << "    display: flex; flex-direction: column; font-size: 20px}\n";
