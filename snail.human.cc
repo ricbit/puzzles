@@ -4,13 +4,17 @@
 #include <string>
 #include <optional>
 #include <sstream>
+#include <map>
 
 using namespace std;
 
 struct Maybe {
   int value, group;
-  bool operator<(const Maybe& b) const {
+  bool operator<(const Maybe &b) const {
     return make_pair(value, group) < make_pair(b.value, b.group);
+  }
+  bool operator==(const Maybe &b) const {
+    return make_pair(value, group) == make_pair(b.value, b.group);
   }
   Maybe next() const {
     if (value < 3) {
@@ -91,12 +95,24 @@ struct Path {
 };
 
 struct Cell {
+  set<Maybe> maybe;
+  optional<int> value;
   Cell(int n) {
     for (int i = 1; i <= 3; i++) {
       for (int g = 1; g <= n; g++) {
         maybe.insert(Maybe{i, g});
       }
     }
+  }
+  Cell(set<Maybe> maybe_, optional<int> value_)
+      : maybe(maybe_), value(value_) {
+  }
+  bool operator==(const Cell& b) const {
+    return value == b.value &&
+        equal(maybe.begin(), maybe.end(), b.maybe.begin(), b.maybe.end());
+  }
+  bool operator!=(const Cell& b) const {
+    return !operator==(b);
   }
   string print_value() {
     if (value) {
@@ -131,8 +147,6 @@ struct Cell {
     }
     return oss.str();
   }
-  set<Maybe> maybe;
-  optional<int> value;
 };
 
 struct State {
@@ -173,7 +187,7 @@ struct StatePrinter {
         border(j, i);
         oss << "\"><div class=\"content\">";
         oss << "<div class=\"maybe-values\">";
-        oss << state.pos(j, i).maybe_values() << "</div>";
+          oss << state.pos(j, i).maybe_values() << "</div>";
         oss << "<div class=\"value\">";
         oss << state.pos(j, i).print_value() << "</div>";
         oss << "<div class=\"maybe-groups\">";
@@ -182,17 +196,50 @@ struct StatePrinter {
       }
       oss << "</tr>";
     }
-    oss << "</table>";
+    oss << "</table>\n";
     return oss.str();
   }
   const Path &path;
   ostringstream oss;
 };
 
+struct Strategy {
+  virtual string name() = 0;
+  virtual map<int, Cell> strategy(State &state) = 0;
+};
+
+struct AddGivens : public Strategy {
+  const vector<string> &grid;
+  AddGivens(const vector<string> &grid_) : grid(grid_) {
+  }
+  virtual string name() {
+    return "Add givens";
+  }
+  virtual map<int, Cell> strategy(State &state) {
+    map<int, Cell> ans;
+    for (int j = 0; j < state.n; j++) {
+      for (int i = 0; i < state.n; i++) {
+        if (grid[j][i] != '.') {
+          Cell cell{{}, grid[j][i] - '0'};
+          for (auto &m : state.pos(j, i).maybe) {
+            if (m.value == *cell.value) {
+              cell.maybe.insert(m);
+            }
+          }
+          if (state.pos(j, i) != cell) {
+            ans.insert(make_pair(state.path.line[j][i], cell));
+          }
+        }
+      }
+    }
+    return ans;
+  }
+};
+
 struct Snail {
-  Snail(int n_, const vector<string>& grid_) 
-      : n(n_), path(n), state(path), grid(grid_) {
-    for (int j = 0; j < n; j++) {
+  Snail(int n_, const vector<string>& grid) 
+      : n(n_), path(n), state(path) {
+    /*for (int j = 0; j < n; j++) {
       for (int i = 0; i < n; i++) {
         if (grid[j][i] != '.') {
           state.pos(j, i).value = grid[j][i] - '0';
@@ -205,7 +252,14 @@ struct Snail {
     forward_maybe();
     backward_maybe();
     //forward_maybe();
+    */
     StatePrinter printer(path);
+    cout << printer.print(state);
+    AddGivens add{grid};
+    auto ans = add.strategy(state);
+    for (auto &x : ans) {
+      state.pos(x.first) = x.second;
+    }
     cout << printer.print(state);
   }
   void filter_given(Cell &cell) {
@@ -273,7 +327,6 @@ struct Snail {
   int n;
   Path path;
   State state;
-  const vector<string> &grid;
 };
 
 int main() {
@@ -296,7 +349,7 @@ int main() {
   cout << "        font-weigth: bold}\n";
   cout << ".maybe-values {color: green;}\n";
   cout << ".maybe-groups {color: brown;}\n";
-  cout << "</style></head><body>";
+  cout << "</style></head><body>\n";
   Snail snail(n, grid);
   cout << "</body></html>";
   return 0;
