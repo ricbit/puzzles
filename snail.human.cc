@@ -205,6 +205,15 @@ struct State {
     }
     return false;
   }
+  int count_maybe(const vector<int>& line, Maybe &m) {
+    int count = 0;
+    for (int i : line) {
+      if (pos(i).maybe.find(m) != pos(i).maybe.end()) {
+        count++;
+      }
+    }
+    return count;
+  }
   auto first_non_empty(const vector<int>& order) {
     auto it = order.begin();
     while (pos(*it).maybe.empty()) {
@@ -354,6 +363,48 @@ struct RemoveCross : public Strategy {
   }
 };
 
+struct OnlyValue : public Strategy {
+  int digit, group;
+  const vector<int> line;
+  string line_name;
+  int line_pos;
+  OnlyValue(int d, int g, const vector<int> line_,
+            string line_name_, int pos_)
+      : digit(d), group(g), line(line_),
+        line_name(line_name_), line_pos(pos_) {
+  }
+  virtual string name() {
+    ostringstream oss;
+    oss << "Digit " << digit << " in group " << group;
+    oss << " only appears on " << line_name << " " << line_pos;
+    return oss.str();
+  }
+  virtual map<int, Cell> strategy(State &state) {
+    Filter filter(state);
+    if (state.has_value(line, digit)) {
+      skip = true;
+      return {};
+    }
+    Maybe m{digit, group};
+    int line_count = state.count_maybe(line, m);
+    int grid_count = state.count_maybe(state.path.forward(), m);
+    if (line_count != grid_count) {
+      return {};
+    }
+    for (int i : line) {
+      Cell cell{{}, state.pos(i).value};
+      for (auto &m : state.pos(i).maybe) {
+        if (m.value != digit || m.group == group) {
+          cell.maybe.insert(m);
+        }
+      }
+      filter.put(i, cell);
+    }
+    skip = true;
+    return filter.flush();
+  }
+};
+
 struct SingleLine : public Strategy {
   int digit;
   const vector<int> line;
@@ -412,16 +463,10 @@ struct SequenceImplication : public Strategy {
   virtual string name() {
     return dir_name + " implication";
   }
-  auto begin(State &state) {
-    auto it = order.begin();
-    while (state.pos(*it).maybe.empty()) {
-      ++it;
-    }
-    return ++it;
-  }
   virtual map<int, Cell> strategy(State &state) {
     Filter filter(state);
-    for (auto it = begin(state); it != order.end(); ++it) {
+    auto it = state.first_non_empty(order) + 1;
+    for (; it != order.end(); ++it) {
       if (state.pos(*it).value && state.pos(*it).maybe.size() == 1) {
         continue;
       }
@@ -513,6 +558,14 @@ struct Snail {
     hard.push_back(newSequenceImplication(
         path.backward(), [](const Maybe &m){ return m.next(); },
         "Backward"));
+    for (int d = 1; d <= 3; d++) {
+      for (int g = 1; g <= n; g++) {
+        for (int i = 0; i < n; i++) {
+          hard.push_back(new OnlyValue(d, g, path.row(i), "row", i));
+          hard.push_back(new OnlyValue(d, g, path.column(i), "column", i));
+        }
+      }
+    }
   }
   void solve() {
     do {
