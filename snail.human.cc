@@ -174,6 +174,16 @@ struct Cell {
     return false;
   }
   template<typename T>
+  Cell filter_maybe(T filter) const {
+    Cell cell{{}, value};
+    for (auto &m : maybe) {
+      if (filter(m)) {
+        cell.maybe.insert(m);
+      }
+    }
+    return cell;
+  }
+  template<typename T>
   string print_maybe(T action) {
     ostringstream oss;
     set<int> values;
@@ -315,12 +325,11 @@ struct AddGivens : public Strategy {
     for (int j = 0; j < state.n; j++) {
       for (int i = 0; i < state.n; i++) {
         if (grid[j][i] != '.') {
-          Cell cell{{}, grid[j][i] - '0'};
-          for (auto &m : state.pos(j, i).maybe) {
-            if (m.value == *cell.value) {
-              cell.maybe.insert(m);
-            }
-          }
+          int value = grid[j][i] - '0';
+          Cell cell = state.pos(j, i).filter_maybe([&](const Maybe &m) {
+            return m.value == value;
+          });
+          cell.value = value;
           filter.put(j, i, cell);
         }
       }
@@ -349,12 +358,9 @@ struct RemoveCross : public Strategy {
         if ((j == bj && i == bi) || (j != bj && i != bi)) {
           continue;
         }
-        Cell cell{{}, state.pos(j, i).value};
-        for (auto &m : state.pos(j, i).maybe) {
-          if (m.value != *state.pos(bj, bi).value) {
-            cell.maybe.insert(m);
-          }
-        }
+        Cell cell = state.pos(j, i).filter_maybe([&](const Maybe &m) {
+          return m.value != *state.pos(bj, bi).value;
+        });
         filter.put(j, i, cell);
       }
     }
@@ -392,12 +398,9 @@ struct OnlyValue : public Strategy {
       return {};
     }
     for (int i : line) {
-      Cell cell{{}, state.pos(i).value};
-      for (auto &m : state.pos(i).maybe) {
-        if (m.value != digit || m.group == group) {
-          cell.maybe.insert(m);
-        }
-      }
+      Cell cell = state.pos(i).filter_maybe([&](const Maybe &m) {
+        return m.value != digit || m.group == group;
+      });
       filter.put(i, cell);
     }
     skip = true;
@@ -470,12 +473,9 @@ struct SequenceImplication : public Strategy {
       if (state.pos(*it).value && state.pos(*it).maybe.size() == 1) {
         continue;
       }
-      Cell cell{{}, state.pos(*it).value};
-      for (auto &m : state.pos(*it).maybe) {
-        if (search(state, *(it - 1), m)) {
-          cell.maybe.insert(m);
-        }
-      }
+      Cell cell = state.pos(*it).filter_maybe([&](const Maybe &m) {
+        return search(state, *(it - 1), m);
+      });
       filter.put(*it, cell);
     }
     return filter.flush();
