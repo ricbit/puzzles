@@ -259,6 +259,11 @@ struct State {
       return !pos(i).maybe.empty();
     });
   }
+  bool has_single_digit(const vector<int>& line, int digit) {
+    return 1 == count_if(line.begin(), line.end(), [&](auto i) {
+      return pos(i).has_maybe_value(digit);
+    });
+  }
   bool done() {
     int count = 0;
     for (int i = 0; i < n * n; i++) {
@@ -559,28 +564,17 @@ struct SingleLine : public Strategy {
       skip = true;
       return {};
     }
-    int count = 0;
-    for (int j : line) {
-      if (state.pos(j).has_maybe_value(digit)) {
-        count++;
-      }
+    if (!state.has_single_digit(line, digit)) {
+      return {};
     }
-    if (count == 1) {
-      for (int j : line) {
-        bool has = false;
-        set<Maybe> maybe;
-        for (auto &m : state.pos(j).maybe) {
-          if (m.value == digit) {
-            has = true;
-            maybe.insert(m);
-          }
-        }
-        if (has) {
-          Cell cell{maybe, digit};
-          filter.put(j, cell);
-          skip = true;
-        }
-      }
+    for (int j : line) {
+      Cell cell = state.pos(j).filter_maybe([&](auto &m) {
+        return m.value == digit;
+      });
+      filter.put(j, cell);
+    }
+    if (!filter.empty()) {
+      skip = true;
     }
     return filter.flush();
   }
