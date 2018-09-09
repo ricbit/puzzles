@@ -147,26 +147,48 @@ struct Cell {
   bool operator!=(const Cell& b) const {
     return !operator==(b);
   }
-  string print_value() {
-    if (value) {
-      if (*value > 0) {
-        return string(1, '0' + *value);
-      } else {
-        return ".";
-      }
-    } else {
-      return "&nbsp;";
-    }
+  bool has_maybe_value(int v) {
+    return maybe.end() != find_if(maybe.begin(), maybe.end(), [&](auto &m) {
+      return m.value == v;
+    });
   }
-  string maybe_values() {
-    return print_values(get_maybe([](const Maybe &m) {
+  template<typename T>
+  Cell filter_maybe(T filter) const {
+    Cell cell{{}, value};
+    for (auto &m : maybe) {
+      if (filter(m)) {
+        cell.maybe.insert(m);
+      }
+    }
+    return cell;
+  }
+  template<typename T>
+  vector<int> get_maybe(T action) const {
+    set<int> values;
+    for (auto &m: maybe) {
+      values.insert(action(m));
+    }
+    return vector<int>(values.begin(), values.end());
+  }
+};
+
+struct CellPrinter {
+  string maybe_values(const Cell &cell) {
+    return print_values(cell.get_maybe([](auto &m) {
       return m.value;
     }));
   }
-  string maybe_groups() {
-    return format_sequence(get_maybe([](const Maybe &m) {
+  string maybe_groups(const Cell &cell) {
+    return format_sequence(cell.get_maybe([](auto &m) {
       return m.group;
     }));
+  }
+  string print_value(const Cell& cell) {
+    if (cell.value) {
+      return string(1, '0' + *cell.value);
+    } else {
+      return "&nbsp;";
+    }
   }
   string print_values(const vector<int> values) {
     ostringstream oss;
@@ -175,14 +197,9 @@ struct Cell {
     }
     return oss.str();
   }
-  bool has_maybe_value(int v) {
-    return maybe.end() != find_if(maybe.begin(), maybe.end(), [&](auto &m) {
-      return m.value == v;
-    });
-  }
-  string groups_from_value(int v) {
+  string groups_from_value(const Cell &cell, int v) {
     vector<int> groups;
-    for (auto &m: maybe) {
+    for (auto &m: cell.maybe) {
       if (m.value == v) {
         groups.push_back(m.group);
       }
@@ -213,24 +230,6 @@ struct Cell {
     } else {
       oss << start << " ";
     }
-  }
-  template<typename T>
-  Cell filter_maybe(T filter) const {
-    Cell cell{{}, value};
-    for (auto &m : maybe) {
-      if (filter(m)) {
-        cell.maybe.insert(m);
-      }
-    }
-    return cell;
-  }
-  template<typename T>
-  vector<int> get_maybe(T action) {
-    set<int> values;
-    for (auto &m: maybe) {
-      values.insert(action(m));
-    }
-    return vector<int>(values.begin(), values.end());
   }
 };
 
@@ -301,18 +300,18 @@ struct StatePrinter {
         oss << "\"><div class=\"content\">";
         if (state.pos(j, i).value) {
           oss << "<div class=\"maybe-values\">";
-          oss << state.pos(j, i).maybe_values() << "</div>";
+          oss << printer.maybe_values(state.pos(j, i)) << "</div>";
           oss << "<div class=\"value\">";
-          oss << state.pos(j, i).print_value() << "</div>";
+          oss << printer.print_value(state.pos(j, i)) << "</div>";
           oss << "<div class=\"maybe-groups\">";
-          oss << state.pos(j, i).maybe_groups() << "</div>";
+          oss << printer.maybe_groups(state.pos(j, i)) << "</div>";
           oss << "</div></td>";
         } else {
           oss << "<div class=\"maybe-values\">";
           for (int d = 1; d <= 3; d++) {
             if (state.pos(j, i).has_maybe_value(d)) {
               oss << d << " : <span class=\"maybe-groups\">";
-              oss << state.pos(j, i).groups_from_value(d);
+              oss << printer.groups_from_value(state.pos(j, i), d);
               oss << "</span><br>";
             }
           }
@@ -324,6 +323,7 @@ struct StatePrinter {
     return oss.str();
   }
   const Path &path;
+  CellPrinter printer;
 };
 
 struct Strategy {
