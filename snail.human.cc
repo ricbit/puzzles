@@ -7,6 +7,7 @@
 #include <map>
 #include <numeric>
 #include <algorithm>
+#include <iterator>
 
 using namespace std;
 
@@ -163,12 +164,10 @@ struct Cell {
     return cell;
   }
   template<typename T>
-  vector<int> get_maybe(T action) const {
-    set<int> values;
-    for (auto &m: maybe) {
-      values.insert(action(m));
-    }
-    return vector<int>(values.begin(), values.end());
+  set<int> get_maybe(T action) const {
+    set<int> seq;
+    transform(maybe.begin(), maybe.end(), inserter(seq, seq.begin()), action);
+    return seq;
   }
 };
 
@@ -190,7 +189,8 @@ struct CellPrinter {
       return "&nbsp;";
     }
   }
-  string print_values(const vector<int> values) {
+  template<class T>
+  string print_values(const T &values) {
     ostringstream oss;
     for (int v : values) {
       oss << v << " ";
@@ -206,7 +206,8 @@ struct CellPrinter {
     }
     return format_sequence(groups);
   }
-  string format_sequence(const vector<int>& seq) {
+  template<class T>
+  string format_sequence(const T& seq) {
     ostringstream oss;
     int start = -1, current = -1;
     for (int i : seq) {
