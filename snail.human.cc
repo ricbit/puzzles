@@ -159,19 +159,60 @@ struct Cell {
     }
   }
   string maybe_values() {
-    return print_maybe([](const Maybe &m) {
+    return print_values(get_maybe([](const Maybe &m) {
       return m.value;
-    });
+    }));
   }
   string maybe_groups() {
-    return print_maybe([](const Maybe &m) {
+    return format_sequence(get_maybe([](const Maybe &m) {
       return m.group;
+    }));
+  }
+  string print_values(const vector<int> values) {
+    ostringstream oss;
+    for (int v : values) {
+      oss << v << " ";
+    }
+    return oss.str();
+  }
+  bool has_maybe_value(int v) {
+    return maybe.end() != find_if(maybe.begin(), maybe.end(), [&](auto &m) {
+      return m.value == v;
     });
   }
-  bool has_maybe_value(int value) {
-    return maybe.end() != find_if(maybe.begin(), maybe.end(), [&](auto &m) {
-      return m.value == value;
-    });
+  string groups_from_value(int v) {
+    vector<int> groups;
+    for (auto &m: maybe) {
+      if (m.value == v) {
+        groups.push_back(m.group);
+      }
+    }
+    return format_sequence(groups);
+  }
+  string format_sequence(const vector<int>& seq) {
+    ostringstream oss;
+    int start = -1, current = -1;
+    for (int i : seq) {
+      if (start == -1) {
+        start = i;
+        current = i;
+      } else if (i == current + 1) {
+        current = i;
+      } else {
+        dump_sequence(start, current, oss);
+        start = i;
+        current = i;
+      }
+    }
+    dump_sequence(start, current, oss);
+    return oss.str();
+  }
+  void dump_sequence(int start, int current, ostringstream &oss) {
+    if (current > start) {
+      oss << start << "-" << current << " ";
+    } else {
+      oss << start << " ";
+    }
   }
   template<typename T>
   Cell filter_maybe(T filter) const {
@@ -184,16 +225,12 @@ struct Cell {
     return cell;
   }
   template<typename T>
-  string print_maybe(T action) {
-    ostringstream oss;
+  vector<int> get_maybe(T action) {
     set<int> values;
     for (auto &m: maybe) {
       values.insert(action(m));
     }
-    for (auto &v: values) {
-      oss << v << " ";
-    }
-    return oss.str();
+    return vector<int>(values.begin(), values.end());
   }
 };
 
@@ -274,14 +311,9 @@ struct StatePrinter {
           oss << "<div class=\"maybe-values\">";
           for (int d = 1; d <= 3; d++) {
             if (state.pos(j, i).has_maybe_value(d)) {
-              oss << d << " : ";
-              for (int g = 1; g <= path.n; g++) {
-                if (state.pos(j, i).maybe.find(Maybe{d, g}) !=
-                    state.pos(j, i).maybe.end()) {
-                  oss << g << " ";
-                }
-              }
-              oss << "<br>";
+              oss << d << " : <span class=\"maybe-groups\">";
+              oss << state.pos(j, i).groups_from_value(d);
+              oss << "</span><br>";
             }
           }
         }
@@ -750,8 +782,8 @@ int main() {
   cout << "     font-size: 12px; font-family: sans-serif;}\n";
   cout << ".value {font-size: 30px; font-family: sans-serif;";
   cout << "        font-weigth: bold}\n";
-  cout << ".maybe-values {color: green;}\n";
-  cout << ".maybe-groups {color: brown;}\n";
+  cout << ".maybe-values {color: brown;}\n";
+  cout << ".maybe-groups {color: green;}\n";
   cout << "</style></head><body>\n";
   Snail snail(n, grid);
   snail.solve();
