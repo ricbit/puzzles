@@ -18,6 +18,9 @@ struct Maybe {
   bool operator==(const Maybe &b) const {
     return make_pair(value, group) == make_pair(b.value, b.group);
   }
+  bool operator!=(const Maybe &b) const {
+    return !operator==(b);
+  }
   Maybe next() const {
     if (value < 3) {
       return Maybe{value + 1, group};
@@ -268,7 +271,7 @@ struct StatePrinter {
           oss << state.pos(j, i).maybe_groups() << "</div>";
           oss << "</div></td>";
         } else {
-          oss << "<div class=\"maybe-values\">";          
+          oss << "<div class=\"maybe-values\">";
           for (int d = 1; d <= 3; d++) {
             if (state.pos(j, i).has_maybe_value(d)) {
               oss << d << " : ";
@@ -376,6 +379,42 @@ struct RemoveCross : public Strategy {
     if (!filter.empty()) {
       skip = true;
     }
+    return filter.flush();
+  }
+};
+
+struct DuplicateGroup : public Strategy {
+  int digit, group;
+  DuplicateGroup(int d_, int g_) : digit(d_), group(g_) {
+  }
+  string name() {
+    ostringstream oss;
+    oss << "Digit " << digit << " from group ";
+    oss << group << " was already found";
+    return oss.str();
+  }
+  map<int, Cell> strategy(State &state) {
+    Filter filter(state);
+    Maybe goal{digit, group};
+    vector<int> order = state.path.forward();
+    auto it = find_if(order.begin(), order.end(), [&](int i) {
+      return state.pos(i).value &&
+             state.pos(i).maybe.size() == 1 &&
+             *(state.pos(i).maybe.begin()) == goal;
+    });
+    if (it == order.end()) {
+      return {};
+    }
+    int ri = distance(order.begin(), it);
+    for (int i = 0; i < state.n * state.n; i++) {
+      if (i != ri) {
+        Cell cell = state.pos(i).filter_maybe([&](auto &m) {
+          return goal != m;
+        });
+        filter.put(i, cell);
+      }
+    }
+    skip = true;
     return filter.flush();
   }
 };
@@ -580,7 +619,7 @@ struct FixEndpoint : public Strategy {
   }
   map<int, Cell> strategy(State &state) {
     Filter filter(state);
-    auto it = state.first_non_empty(order); 
+    auto it = state.first_non_empty(order);
     while (!state.pos(*it).has_maybe_value(endpoint.value)) {
       Cell cell{{}, state.pos(*it).value};
       filter.put(*it++, cell);
@@ -598,7 +637,7 @@ enum struct Status {
 };
 
 struct Snail {
-  Snail(int n_, const vector<string>& grid) 
+  Snail(int n_, const vector<string>& grid)
       : n(n_), path(n), state(path), printer(path) {
     easy.push_back(new AddGivens{grid});
     for (int d = 1; d <= 3; d++) {
@@ -610,6 +649,11 @@ struct Snail {
     for (int j = 0; j < n; j++) {
       for (int i = 0 ; i < n; i++) {
         easy.push_back(new RemoveCross{j, i});
+      }
+    }
+    for (int d = 1; d <= 3; d++) {
+      for (int g = 1; g <= n; g++) {
+        easy.push_back(new DuplicateGroup{d, g});
       }
     }
     hard.push_back(new FixEndpoint(
