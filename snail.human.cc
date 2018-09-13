@@ -82,7 +82,7 @@ struct Path {
       return line[nj][ni];
     }
   }
-  vector<int> column(int c) {
+  vector<int> column(int c) const {
     vector<int> ans;
     for (int i = 0; i < n; i++) {
       ans.push_back(line[i][c]);
@@ -96,7 +96,7 @@ struct Path {
     }
     return ans;
   }
-  void print() {
+  void print() const {
     for (int j = 0; j < n; j++) {
       for (int i = 0; i < n; i++) {
         cout << line[j][i] << " ";
@@ -117,6 +117,9 @@ struct Path {
       ans.push_back(i);
     }
     return ans;
+  }
+  int modinc(int a) const {
+    return 1 + ((a - 1) + 1) % 3;
   }
   int n;
   vector<Coord> grid;
@@ -148,10 +151,13 @@ struct Cell {
   bool operator!=(const Cell& b) const {
     return !operator==(b);
   }
-  bool has_maybe_value(int v) {
+  bool has_maybe_value(int v) const {
     return maybe.end() != find_if(maybe.begin(), maybe.end(), [&](auto &m) {
       return m.value == v;
     });
+  }
+  bool empty() const {
+    return maybe.empty();
   }
   template<typename T>
   Cell filter_maybe(T filter) const {
@@ -172,17 +178,17 @@ struct Cell {
 };
 
 struct CellPrinter {
-  string maybe_values(const Cell &cell) {
+  string maybe_values(const Cell &cell) const {
     return print_values(cell.get_maybe([](auto &m) {
       return m.value;
     }));
   }
-  string maybe_groups(const Cell &cell) {
+  string maybe_groups(const Cell &cell) const {
     return format_sequence(cell.get_maybe([](auto &m) {
       return m.group;
     }));
   }
-  string print_value(const Cell& cell) {
+  string print_value(const Cell& cell) const {
     if (cell.value) {
       return string(1, '0' + *cell.value);
     } else {
@@ -190,14 +196,14 @@ struct CellPrinter {
     }
   }
   template<class T>
-  string print_values(const T &values) {
+  string print_values(const T &values) const {
     ostringstream oss;
-    for (int v : values) {
+    for (auto &v : values) {
       oss << v << " ";
     }
     return oss.str();
   }
-  string groups_from_value(const Cell &cell, int v) {
+  string groups_from_value(const Cell &cell, int v) const {
     vector<int> groups;
     for (auto &m: cell.maybe) {
       if (m.value == v) {
@@ -207,7 +213,7 @@ struct CellPrinter {
     return format_sequence(groups);
   }
   template<class T>
-  string format_sequence(const T& seq) {
+  string format_sequence(const T& seq) const {
     ostringstream oss;
     int start = -1, current = -1;
     for (int i : seq) {
@@ -225,7 +231,7 @@ struct CellPrinter {
     dump_sequence(start, current, oss);
     return oss.str();
   }
-  void dump_sequence(int start, int current, ostringstream &oss) {
+  void dump_sequence(int start, int current, ostringstream &oss) const {
     if (current > start) {
       oss << start << "-" << current << " ";
     } else {
@@ -256,13 +262,37 @@ struct State {
   }
   auto first_non_empty(const vector<int>& order) {
     return find_if(order.begin(), order.end(), [&](int i) {
-      return !pos(i).maybe.empty();
+      return !pos(i).empty();
     });
   }
   bool has_single_digit(const vector<int>& line, int digit) {
     return 1 == count_if(line.begin(), line.end(), [&](auto i) {
       return pos(i).has_maybe_value(digit);
     });
+  }
+  bool is_sequence(const vector<int>& line) {
+    set<int> sorted(line.begin(), line.end());
+    int current = -1;
+    for (int i : sorted) {
+      if (!pos(i).empty()) {
+        if (current == -1) {
+          current = i;
+        } else if (i == current + 1) {
+          current = i;
+        } else {
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+  bool has_before(int start, const Maybe &m) {
+    for (int i = 0; i < start; i++) {
+      if (pos(i).maybe.find(m) != pos(i).maybe.end()) {
+        return true;
+      }
+    }
+    return false;
   }
   bool done() {
     int count = 0;
@@ -279,9 +309,9 @@ struct State {
 };
 
 struct StatePrinter {
-  StatePrinter(const Path &path_) : path(path_) {
+  StatePrinter(const Path &path_) : path(path_), printer() {
   }
-  string border(int j, int i) {
+  string border(int j, int i) const {
     ostringstream oss;
     const static string name[4]{"right", "bottom", "left", "top"};
     for (int d = 1; d <= 4; d++) {
@@ -292,7 +322,7 @@ struct StatePrinter {
     }
     return oss.str();
   }
-  string print(State &state, const map<int, Cell> &changed) {
+  string print(State &state, const map<int, Cell> &changed) const {
     ostringstream oss;
     oss << "<div><table>";
     for (int j = 0; j < path.n; j++) {
@@ -329,14 +359,13 @@ struct StatePrinter {
     return oss.str();
   }
   const Path &path;
-  CellPrinter printer;
+  const CellPrinter printer;
 };
 
 struct Strategy {
   virtual string name() = 0;
   virtual map<int, Cell> strategy(State &state) = 0;
-  virtual ~Strategy() {
-  }
+  virtual ~Strategy() = default;
   bool skip = false;
 };
 
@@ -359,18 +388,24 @@ struct Filter {
   map<int, Cell> flush() {
     return ans;
   }
+  void print() {
+    for (auto x : ans) {
+      cout << x.first << " ";
+    }
+    cout << "<br>";
+  }
   State &state;
   map<int, Cell> ans;
 };
 
-struct AddGivens : public Strategy {
+struct AddGivens final : public Strategy {
   const vector<string> &grid;
   AddGivens(const vector<string> &grid_) : grid(grid_) {
   }
-  string name() {
+  string name() override {
     return "Add givens";
   }
-  map<int, Cell> strategy(State &state) {
+  map<int, Cell> strategy(State &state) override {
     Filter filter(state);
     for (int j = 0; j < state.n; j++) {
       for (int i = 0; i < state.n; i++) {
@@ -389,16 +424,16 @@ struct AddGivens : public Strategy {
   }
 };
 
-struct RemoveCross : public Strategy {
+struct RemoveCross final : public Strategy {
   int bj, bi;
   RemoveCross(int bj_, int bi_) : bj(bj_), bi(bi_) {
   }
-  string name() {
+  string name() override {
     ostringstream oss;
     oss << "Remove from row " << bj << " and column "<< bi;
     return oss.str();
   }
-  map<int, Cell> strategy(State &state) {
+  map<int, Cell> strategy(State &state) override {
     Filter filter(state);
     if (!state.pos(bj, bi).value) {
       return {};
@@ -421,17 +456,17 @@ struct RemoveCross : public Strategy {
   }
 };
 
-struct DuplicateGroup : public Strategy {
+struct DuplicateGroup final : public Strategy {
   int digit, group;
   DuplicateGroup(int d_, int g_) : digit(d_), group(g_) {
   }
-  string name() {
+  string name() override {
     ostringstream oss;
     oss << "Digit " << digit << " from group ";
     oss << group << " was already found";
     return oss.str();
   }
-  map<int, Cell> strategy(State &state) {
+  map<int, Cell> strategy(State &state) override {
     Filter filter(state);
     Maybe goal{digit, group};
     vector<int> order = state.path.forward();
@@ -457,7 +492,121 @@ struct DuplicateGroup : public Strategy {
   }
 };
 
-struct OnlyValue : public Strategy {
+struct LimitSequence final : public Strategy {
+  const vector<int> line;
+  string line_name;
+  int line_pos;
+  LimitSequence(const vector<int> line_, string line_name_, int pos_)
+      : line(line_), line_name(line_name_), line_pos(pos_) {
+  }
+  string name() override {
+    ostringstream oss;
+    oss << "Can't have more than 3 digits in " << line_name << " " << line_pos;
+    return oss.str();
+  }
+  map<int, Cell> strategy(State &state) override {
+    Filter filter(state);
+    set<Maybe> maybes;
+    if (!state.is_sequence(line)) {
+      return {};
+    }
+    int start = state.n * state.n;
+    for (int i : line) {
+      for (auto &m : state.pos(i).maybe) {
+        maybes.insert(m);
+      }
+      if (!state.pos(i).empty() && i < start) {
+        start = i;
+      }
+    }
+    set<Maybe> firsts;
+    for (auto &m : maybes) {
+      if (!state.has_before(start, m)) {
+        firsts.insert(m);
+      }
+    }
+    set<Maybe> avoid;
+    for (auto &f : firsts) {
+      for (auto &m : maybes) {
+        if (f.value == m.value && f.group < m.group) {
+          avoid.insert(m);
+        }
+      }
+    }
+    for (int i : line) {
+      Cell cell = state.pos(i).filter_maybe([&](auto &m) {
+        return find(avoid.begin(), avoid.end(), m) == avoid.end();
+      });
+      filter.put(i, cell);
+    }
+    return filter.flush();
+  }
+};
+
+struct BoundedSequence final : public Strategy {
+  int start, end, middle;
+  const vector<int> line;
+  string line_name;
+  int line_pos;
+  BoundedSequence(int start_, int end_, int middle_,
+                  const vector<int> line_, string line_name_, int pos_)
+      : start(start_), end(end_), middle(middle_),
+        line(line_), line_name(line_name_), line_pos(pos_) {
+  }
+  string name() override {
+    ostringstream oss;
+    oss << "Digit " << middle << " between " << start << " and ";
+    oss << end << " only appear on " << line_name << " " << line_pos;
+    return oss.str();
+  }
+  map<int, Cell> strategy(State &state) override {
+    Filter filter(state);
+    int current = -1;
+    for (int i = 0; i < state.n * state.n; i++) {
+      if (state.pos(i).value) {
+        if (current == -1) {
+          current = i;
+          continue;
+        }
+        if (state.pos(current).value == start && state.pos(i).value == end) {
+          if (done.find(make_pair(current, i)) != done.end()) {
+            current = i;
+            continue;
+          }
+          if (bounded(current + 1, i - 1, state)) {
+            for (int j : line) {
+              if (state.pos(j).has_maybe_value(middle) &&
+                  (j < current || j > i)) {
+                Cell cell = state.pos(j).filter_maybe([&](auto &m) {
+                  return m.value != middle;
+                });
+                filter.put(j, cell);
+              }
+            }
+            break;
+          }
+        }
+        current = i;
+      }
+    }
+    return filter.flush();
+  }
+  bool bounded(int a, int b, State &state) {
+    bool present = false;
+    for (int i = a; i <= b; i++) {
+      if (state.pos(i).has_maybe_value(middle)) {
+        if (find(line.begin(), line.end(), i) == line.end()) {
+          return false;
+        }
+        present = true;
+      }
+    }
+    return present;
+  }
+  set<pair<int, int>> done;
+};
+
+struct OnlyValue final : public Strategy {
   int digit, group;
   const vector<int> line;
   string line_name;
@@ -467,13 +616,13 @@ struct OnlyValue : public Strategy {
       : digit(d), group(g), line(line_),
         line_name(line_name_), line_pos(pos_) {
   }
-  string name() {
+  string name() override {
     ostringstream oss;
     oss << "Digit " << digit << " in group " << group;
     oss << " only appears on " << line_name << " " << line_pos;
     return oss.str();
   }
-  map<int, Cell> strategy(State &state) {
+  map<int, Cell> strategy(State &state) override {
     Filter filter(state);
     if (state.has_value(line, digit)) {
       skip = true;
@@ -496,7 +645,7 @@ struct OnlyValue : public Strategy {
   }
 };
 
-struct OnlyGroup : public Strategy {
+struct OnlyGroup final : public Strategy {
   int digit, group;
   const vector<int> line;
   string line_name;
@@ -506,13 +655,13 @@ struct OnlyGroup : public Strategy {
       : digit(d), group(g), line(line_),
         line_name(line_name_), line_pos(pos_) {
   }
-  string name() {
+  string name() override {
     ostringstream oss;
     oss << line_name << " " << line_pos << " only has ";
     oss << digit << " in group " << group;
     return oss.str();
   }
-  map<int, Cell> strategy(State &state) {
+  map<int, Cell> strategy(State &state) override {
     Filter filter(state);
     if (state.has_value(line, digit)) {
       skip = true;
@@ -545,7 +694,7 @@ struct OnlyGroup : public Strategy {
   }
 };
 
-struct SingleLine : public Strategy {
+struct SingleLine final : public Strategy {
   int digit;
   const vector<int> line;
   string line_name;
@@ -553,12 +702,12 @@ struct SingleLine : public Strategy {
   SingleLine(int d, const vector<int> line_, string line_name_, int pos_)
       : digit(d), line(line_), line_name(line_name_), line_pos(pos_) {
   }
-  string name() {
+  string name() override {
     ostringstream oss;
     oss << "Single " << digit << " in " << line_name << " " << line_pos;
     return oss.str();
   }
-  map<int, Cell> strategy(State &state) {
+  map<int, Cell> strategy(State &state) override {
     Filter filter(state);
     if (state.has_value(line, digit)) {
       skip = true;
@@ -568,20 +717,21 @@ struct SingleLine : public Strategy {
       return {};
     }
     for (int j : line) {
-      Cell cell = state.pos(j).filter_maybe([&](auto &m) {
-        return m.value == digit;
-      });
-      filter.put(j, cell);
-    }
-    if (!filter.empty()) {
-      skip = true;
+      if (state.pos(j).has_maybe_value(digit)) {
+        Cell cell = state.pos(j).filter_maybe([&](auto &m) {
+          return m.value == digit;
+        });
+        cell.value = digit;
+        filter.put(j, cell);
+        skip = true;
+      }
     }
     return filter.flush();
   }
 };
 
 template<typename T>
-struct SequenceImplication : public Strategy {
+struct SequenceImplication final : public Strategy {
   const vector<int> order, reverse;
   T action;
   string dir_name;
@@ -589,10 +739,10 @@ struct SequenceImplication : public Strategy {
     : order(order_), reverse(order.rbegin(), order.rend()),
       action(action_), dir_name(name_) {
   }
-  string name() {
+  string name() override {
     return dir_name + " implication";
   }
-  map<int, Cell> strategy(State &state) {
+  map<int, Cell> strategy(State &state) override {
     Filter filter(state);
     auto it = state.first_non_empty(order) + 1;
     for (; it != order.end(); ++it) {
@@ -632,7 +782,7 @@ SequenceImplication<T> *newSequenceImplication(
   return new SequenceImplication<T>(order_, action_, name_);
 }
 
-struct FixEndpoint : public Strategy {
+struct FixEndpoint final : public Strategy {
   const vector<int> order;
   const Maybe endpoint;
   string endpoint_name;
@@ -641,10 +791,10 @@ struct FixEndpoint : public Strategy {
       : order(order_), endpoint(endpoint_),
         endpoint_name("Fix " + name_ + " cell") {
   }
-  string name() {
+  string name() override {
     return endpoint_name;
   }
-  map<int, Cell> strategy(State &state) {
+  map<int, Cell> strategy(State &state) override {
     Filter filter(state);
     auto it = state.first_non_empty(order);
     while (!state.pos(*it).has_maybe_value(endpoint.value)) {
@@ -701,6 +851,22 @@ struct Snail {
         }
       }
     }
+    for (int i = 0; i < n; i++) {
+      hard.push_back(new LimitSequence(path.row(i), "row", i));
+      hard.push_back(new LimitSequence(path.column(i), "column", i));
+    }
+    for (int s = 1; s <= 3; s++) {
+      for (int e = 1; e <= 3; e++) {
+        for (int m = path.modinc(s); m != e; m = path.modinc(m)) {
+          for (int i = 0; i < n; i++) {
+            hard.push_back(
+                new BoundedSequence(s, e, m, path.row(i), "row", i));
+            hard.push_back(
+                new BoundedSequence(s, e, m, path.column(i), "column", i));
+          }
+        }
+      }
+    }
   }
   ~Snail() {
     for (auto *s : easy) {
@@ -749,9 +915,9 @@ struct Snail {
     return changed ? Status::CHANGED : Status::UNCHANGED;
   }
   int n;
-  Path path;
+  const Path path;
   State state;
-  StatePrinter printer;
+  const StatePrinter printer;
   vector<Strategy*> easy, hard;
 };
 
