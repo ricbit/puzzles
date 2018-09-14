@@ -43,7 +43,7 @@ struct Coord {
 };
 
 struct Path {
-  Path(int n_): n(n_), grid(n * n), line(n, vector<int>(n)),
+  Path(int n): n(n), grid(n * n), line(n, vector<int>(n)),
       row_(n), column_(n) {
     int miny = -1, maxy = n;
     int minx = -1, maxx = n;
@@ -146,6 +146,8 @@ struct Path {
 struct Cell {
   set<Maybe> maybe;
   optional<int> value;
+  Cell() : maybe{}, value{} {
+  }
   Cell(int n) {
     for (int i = 1; i <= 3; i++) {
       for (int g = 1; g <= n; g++) {
@@ -153,8 +155,8 @@ struct Cell {
       }
     }
   }
-  Cell(set<Maybe> maybe_, optional<int> value_)
-      : maybe(maybe_), value(value_) {
+  Cell(set<Maybe> maybe, optional<int> value)
+      : maybe(maybe), value(value) {
   }
   bool operator==(const Cell& b) const {
     return value == b.value &&
@@ -253,8 +255,8 @@ struct CellPrinter {
 };
 
 struct State {
-  State(const Path &path_)
-      : n(path_.n), pos_(n * n, Cell(n)), path(path_) {
+  State(const Path &path)
+      : n(path.n), pos_(n * n, Cell(n)), path(path) {
   }
   Cell &pos(int i) {
     return pos_[i];
@@ -321,7 +323,7 @@ struct State {
 };
 
 struct StatePrinter {
-  StatePrinter(const Path &path_) : path(path_), printer() {
+  StatePrinter(const Path &path) : path(path), printer() {
   }
   string border(int j, int i) const {
     ostringstream oss;
@@ -382,14 +384,14 @@ struct Strategy {
 };
 
 struct Filter {
-  Filter(State &state_) : state(state_) {
+  Filter(State &state) : state(state) {
   }
-  void put(int j, int i, Cell &cell) {
+  void put(int j, int i, Cell cell) {
     if (state.pos(j, i) != cell) {
       ans.insert(make_pair(state.path.line[j][i], cell));
     }
   }
-  void put(int i, Cell &cell) {
+  void put(int i, Cell cell) {
     if (state.pos(i) != cell) {
       ans.insert(make_pair(i, cell));
     }
@@ -412,7 +414,7 @@ struct Filter {
 
 struct AddGivens final : public Strategy {
   const vector<string> &grid;
-  AddGivens(const vector<string> &grid_) : grid(grid_) {
+  AddGivens(const vector<string> &grid) : grid(grid) {
   }
   string name() override {
     return "Add givens";
@@ -438,7 +440,7 @@ struct AddGivens final : public Strategy {
 
 struct RemoveCross final : public Strategy {
   int bj, bi;
-  RemoveCross(int bj_, int bi_) : bj(bj_), bi(bi_) {
+  RemoveCross(int bj, int bi) : bj(bj), bi(bi) {
   }
   string name() override {
     ostringstream oss;
@@ -470,7 +472,7 @@ struct RemoveCross final : public Strategy {
 
 struct DuplicateGroup final : public Strategy {
   int digit, group;
-  DuplicateGroup(int d_, int g_) : digit(d_), group(g_) {
+  DuplicateGroup(int d, int g) : digit(d), group(g) {
   }
   string name() override {
     ostringstream oss;
@@ -508,8 +510,8 @@ struct LimitSequence final : public Strategy {
   const vector<int> line;
   string line_name;
   int line_pos;
-  LimitSequence(const vector<int> line_, string line_name_, int pos_)
-      : line(line_), line_name(line_name_), line_pos(pos_) {
+  LimitSequence(const vector<int> line, string line_name, int pos)
+      : line(line), line_name(line_name), line_pos(pos) {
   }
   string name() override {
     ostringstream oss;
@@ -560,10 +562,10 @@ struct BoundedSequence final : public Strategy {
   const vector<int> line;
   string line_name;
   int line_pos;
-  BoundedSequence(int start_, int end_, int middle_,
-                  const vector<int> line_, string line_name_, int pos_)
-      : start(start_), end(end_), middle(middle_),
-        line(line_), line_name(line_name_), line_pos(pos_) {
+  BoundedSequence(int start, int end, int middle,
+                  const vector<int> line, string line_name, int pos)
+      : start(start), end(end), middle(middle),
+        line(line), line_name(line_name), line_pos(pos) {
   }
   string name() override {
     ostringstream oss;
@@ -624,10 +626,10 @@ struct OnlyValue final : public Strategy {
   const vector<int> line;
   string line_name;
   int line_pos;
-  OnlyValue(int d, int g, const vector<int> line_,
-            string line_name_, int pos_)
-      : digit(d), group(g), line(line_),
-        line_name(line_name_), line_pos(pos_) {
+  OnlyValue(int d, int g, const vector<int> line,
+            string line_name, int pos)
+      : digit(d), group(g), line(line),
+        line_name(line_name), line_pos(pos) {
   }
   string name() override {
     ostringstream oss;
@@ -663,10 +665,10 @@ struct OnlyGroup final : public Strategy {
   const vector<int> line;
   string line_name;
   int line_pos;
-  OnlyGroup(int d, int g, const vector<int> line_,
-            string line_name_, int pos_)
-      : digit(d), group(g), line(line_),
-        line_name(line_name_), line_pos(pos_) {
+  OnlyGroup(int d, int g, const vector<int> line,
+            string line_name, int pos)
+      : digit(d), group(g), line(line),
+        line_name(line_name), line_pos(pos) {
   }
   string name() override {
     ostringstream oss;
@@ -707,13 +709,59 @@ struct OnlyGroup final : public Strategy {
   }
 };
 
+struct ExactlyNValues final : public Strategy {
+  int n;
+  const vector<int> line;
+  string line_name;
+  int line_pos;
+  ExactlyNValues(int n, const vector<int> line,
+            string line_name, int pos)
+      : n(n), line(line), line_name(line_name), line_pos(pos) {
+  }
+  string name() override {
+    ostringstream oss;
+    oss << line_name << " " << line_pos << " must have exactly ";
+    oss << n << " values";
+    return oss.str();
+  }
+  map<int, Cell> strategy(State &state) override {
+    Filter filter(state);
+    if (!state.is_sequence(line)) {
+      return {};
+    }
+    return {};
+  }
+  Cell filter_maybes(auto &pos, const set<Maybe>& allow) {
+    return pos.filter_maybe([&](auto &m) {
+      return allow.find(m) != allow.end();
+    });
+  }
+  int next_non_empty(State &state, int start) {
+    int s = line.size();
+    for (int i = start; i < s; i++) {
+      if (!state.pos(line[i]).empty()) {
+        return i;
+      }
+    }
+    return -1;
+  }
+  int prev_non_empty(State &state, int start) {
+    for (int i = start; i >= 0; i--) {
+      if (!state.pos(line[i]).empty()) {
+        return i;
+      }
+    }
+    return -1;
+  }
+};
+
 struct SingleLine final : public Strategy {
   int digit;
   const vector<int> line;
   string line_name;
   int line_pos;
-  SingleLine(int d, const vector<int> line_, string line_name_, int pos_)
-      : digit(d), line(line_), line_name(line_name_), line_pos(pos_) {
+  SingleLine(int d, const vector<int> line, string line_name, int pos)
+      : digit(d), line(line), line_name(line_name), line_pos(pos) {
   }
   string name() override {
     ostringstream oss;
@@ -748,9 +796,9 @@ struct SequenceImplication final : public Strategy {
   const vector<int> order, reverse;
   T action;
   string dir_name;
-  SequenceImplication(const vector<int> order_, T action_, string name_)
-    : order(order_), reverse(order.rbegin(), order.rend()),
-      action(action_), dir_name(name_) {
+  SequenceImplication(const vector<int> order, T action, string name)
+    : order(order), reverse(order.rbegin(), order.rend()),
+      action(action), dir_name(name) {
   }
   string name() override {
     return dir_name + " implication";
@@ -791,18 +839,18 @@ struct SequenceImplication final : public Strategy {
 
 template<typename T>
 SequenceImplication<T> *newSequenceImplication(
-    const vector<int> order_, T action_, string name_){
-  return new SequenceImplication<T>(order_, action_, name_);
+    const vector<int> order, T action, string name){
+  return new SequenceImplication<T>(order, action, name);
 }
 
 struct FixEndpoint final : public Strategy {
   const vector<int> order;
   const Maybe endpoint;
   string endpoint_name;
-  FixEndpoint(const vector<int> order_,
-              const Maybe endpoint_, string name_)
-      : order(order_), endpoint(endpoint_),
-        endpoint_name("Fix " + name_ + " cell") {
+  FixEndpoint(const vector<int> order,
+              const Maybe endpoint, string name)
+      : order(order), endpoint(endpoint),
+        endpoint_name("Fix " + name + " cell") {
   }
   string name() override {
     return endpoint_name;
@@ -811,7 +859,7 @@ struct FixEndpoint final : public Strategy {
     Filter filter(state);
     auto it = state.first_non_empty(order);
     while (!state.pos(*it).has_maybe_value(endpoint.value)) {
-      Cell cell{{}, {}};
+      Cell cell;
       filter.put(*it++, cell);
     }
     Cell cell{set<Maybe>{endpoint}, state.pos(*it).value};
@@ -827,8 +875,8 @@ enum struct Status {
 };
 
 struct Snail {
-  Snail(int n_, const vector<string>& grid)
-      : n(n_), path(n), state(path), printer(path) {
+  Snail(int n, const vector<string>& grid)
+      : n(n), path(n), state(path), printer(path) {
     easy.push_back(new AddGivens{grid});
     for (int d = 1; d <= 3; d++) {
       for (int j = 0; j < n; j++) {
@@ -879,6 +927,10 @@ struct Snail {
           }
         }
       }
+    }
+    for (int i = 0; i < n; i++) {
+      hard.push_back(new ExactlyNValues(3, path.row(i), "Row", i));
+      hard.push_back(new ExactlyNValues(3, path.column(i), "Column", i));
     }
   }
   ~Snail() {
