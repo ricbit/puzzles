@@ -170,6 +170,9 @@ struct Cell {
       return m.value == v;
     });
   }
+  bool has_maybe(const Maybe &m) const {
+    return find(maybe.begin(), maybe.end(), m) != maybe.end();
+  }
   bool empty() const {
     return maybe.empty();
   }
@@ -729,7 +732,31 @@ struct ExactlyNValues final : public Strategy {
     if (!state.is_sequence(line)) {
       return {};
     }
-    return {};
+    set<int> valid;
+    copy_if(line.begin(), line.end(), inserter(valid, valid.begin()),
+        [&](int i){ return !state.pos(i).empty(); });
+    map<int, set<Maybe>> allow;
+    for (auto i = valid.begin(); i != valid.end(); ++i) {
+      for (auto &m : state.pos(*i).maybe) {
+        auto m2 = m.next();
+        for (auto i2 = next(i); i2 != valid.end(); ++i2) {
+          if (state.pos(*i2).has_maybe(m2)) {
+            auto m3 = m2.next();
+            for (auto i3 = next(i2); i3 != valid.end(); ++i3) {
+              if (state.pos(*i3).has_maybe(m3)) {
+                allow[*i].insert(m);
+                allow[*i2].insert(m2);
+                allow[*i3].insert(m3);
+              }
+            }
+          }
+        }
+      }
+    }
+    for (auto kv : allow) {
+      filter.put(kv.first, Cell(kv.second, state.pos(kv.first).value));
+    }
+    return filter.flush();
   }
   Cell filter_maybes(auto &pos, const set<Maybe>& allow) {
     return pos.filter_maybe([&](auto &m) {
