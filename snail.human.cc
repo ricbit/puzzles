@@ -735,9 +735,13 @@ struct ExactlyNValues final : public Strategy {
     set<int> valid;
     copy_if(line.begin(), line.end(), inserter(valid, valid.begin()),
         [&](int i){ return !state.pos(i).empty(); });
+    set<Maybe> first = get_first(state, valid);
     map<int, set<Maybe>> allow;
     for (auto i = valid.begin(); i != valid.end(); ++i) {
       for (auto &m : state.pos(*i).maybe) {
+        if (first.find(m) == first.end()) {
+          continue;
+        }
         auto m2 = m.next();
         for (auto i2 = next(i); i2 != valid.end(); ++i2) {
           if (state.pos(*i2).has_maybe(m2)) {
@@ -758,27 +762,22 @@ struct ExactlyNValues final : public Strategy {
     }
     return filter.flush();
   }
-  Cell filter_maybes(auto &pos, const set<Maybe>& allow) {
-    return pos.filter_maybe([&](auto &m) {
-      return allow.find(m) != allow.end();
-    });
-  }
-  int next_non_empty(State &state, int start) {
-    int s = line.size();
-    for (int i = start; i < s; i++) {
-      if (!state.pos(line[i]).empty()) {
-        return i;
+  set<Maybe> get_first(State &state, const set<int>& line) {
+    set<Maybe> valid;
+    for (int i = *min_element(begin(line), end(line)) - 1; i >= 0; i--) {
+      if (state.pos(i).value) {
+        for (auto &m : state.pos(i).maybe) {
+          valid.insert(m.next());
+        }
+        return valid;
+      }
+      for (auto &m : state.pos(i).maybe) {
+        valid.insert(m);
+        valid.insert(m.next());
       }
     }
-    return -1;
-  }
-  int prev_non_empty(State &state, int start) {
-    for (int i = start; i >= 0; i--) {
-      if (!state.pos(line[i]).empty()) {
-        return i;
-      }
-    }
-    return -1;
+    valid.insert(Maybe{1, 1});
+    return valid;
   }
 };
 
