@@ -43,7 +43,8 @@ struct Coord {
 };
 
 struct Path {
-  Path(int n_): n(n_), grid(n * n), line(n, vector<int>(n)) {
+  Path(int n_): n(n_), grid(n * n), line(n, vector<int>(n)),
+      row_(n), column_(n) {
     int miny = -1, maxy = n;
     int minx = -1, maxx = n;
     for (int i = 0; i < n * n; i++) {
@@ -65,6 +66,10 @@ struct Path {
         minx++;
       }
     }
+    for (int i = 0; i < n; i++) {
+      row_[i] = build_row(i);
+      column_[i] = build_column(i);
+    }
   }
   void change() {
     curx -= dx[dir];
@@ -82,19 +87,11 @@ struct Path {
       return line[nj][ni];
     }
   }
-  vector<int> column(int c) const {
-    vector<int> ans;
-    for (int i = 0; i < n; i++) {
-      ans.push_back(line[i][c]);
-    }
-    return ans;
+  const vector<int> &column(int c) const {
+    return column_[c];
   }
-  vector<int> row(int r) const {
-    vector<int> ans;
-    for (int i = 0; i < n; i++) {
-      ans.push_back(line[r][i]);
-    }
-    return ans;
+  const vector<int> &row(int c) const {
+    return row_[c];
   }
   void print() const {
     for (int j = 0; j < n; j++) {
@@ -121,10 +118,25 @@ struct Path {
   int modinc(int a) const {
     return 1 + ((a - 1) + 1) % 3;
   }
-  int n;
+  const int n;
   vector<Coord> grid;
   vector<vector<int>> line;
  private:
+  vector<int> build_column(int c) const {
+    vector<int> ans;
+    for (int i = 0; i < n; i++) {
+      ans.push_back(line[i][c]);
+    }
+    return ans;
+  }
+  vector<int> build_row(int r) const {
+    vector<int> ans;
+    for (int i = 0; i < n; i++) {
+      ans.push_back(line[r][i]);
+    }
+    return ans;
+  }
+  vector<vector<int>> row_, column_;
   int cury = 0, curx = 0;
   int dir = 0;
   constexpr static int dx[4]{1, 0, -1, 0};
@@ -583,6 +595,7 @@ struct BoundedSequence final : public Strategy {
                 filter.put(j, cell);
               }
             }
+            done.insert(make_pair(current, i));
             break;
           }
         }
@@ -798,7 +811,7 @@ struct FixEndpoint final : public Strategy {
     Filter filter(state);
     auto it = state.first_non_empty(order);
     while (!state.pos(*it).has_maybe_value(endpoint.value)) {
-      Cell cell{{}, state.pos(*it).value};
+      Cell cell{{}, {}};
       filter.put(*it++, cell);
     }
     Cell cell{set<Maybe>{endpoint}, state.pos(*it).value};
@@ -914,7 +927,7 @@ struct Snail {
     }
     return changed ? Status::CHANGED : Status::UNCHANGED;
   }
-  int n;
+  const int n;
   const Path path;
   State state;
   const StatePrinter printer;
