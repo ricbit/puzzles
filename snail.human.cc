@@ -154,7 +154,7 @@ struct Cell {
     }
   }
   Cell(set<Maybe> maybe, optional<int> value)
-      : maybe(maybe), value(value) {
+      : maybe(move(maybe)), value(value) {
   }
   bool operator==(const Cell& b) const {
     return value == b.value &&
