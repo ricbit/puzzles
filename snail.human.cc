@@ -8,8 +8,10 @@
 #include <numeric>
 #include <algorithm>
 #include <iterator>
+#include <utility>
 
 using namespace std;
+using namespace rel_ops;
 
 struct Maybe {
   int value, group;
@@ -18,9 +20,6 @@ struct Maybe {
   }
   bool operator==(const Maybe &b) const {
     return make_pair(value, group) == make_pair(b.value, b.group);
-  }
-  bool operator!=(const Maybe &b) const {
-    return !operator==(b);
   }
   Maybe next() const {
     if (value < 3) {
@@ -146,8 +145,7 @@ struct Path {
 struct Cell {
   set<Maybe> maybe;
   optional<int> value;
-  Cell() : maybe{}, value{} {
-  }
+  Cell() = default;
   Cell(int n) {
     for (int i = 1; i <= 3; i++) {
       for (int g = 1; g <= n; g++) {
@@ -162,29 +160,30 @@ struct Cell {
     return value == b.value &&
         equal(maybe.begin(), maybe.end(), b.maybe.begin(), b.maybe.end());
   }
-  bool operator!=(const Cell& b) const {
-    return !operator==(b);
-  }
   bool has_maybe_value(int v) const {
     return maybe.end() != find_if(maybe.begin(), maybe.end(), [&](auto &m) {
       return m.value == v;
     });
   }
   bool has_maybe(const Maybe &m) const {
-    return find(maybe.begin(), maybe.end(), m) != maybe.end();
+    return maybe.find(m) != maybe.end();
   }
   bool empty() const {
     return maybe.empty();
   }
   template<typename T>
-  Cell filter_maybe(T filter) const {
-    Cell cell{{}, value};
+  Cell filter_maybe(optional<int> new_value, T filter) const {
+    Cell cell{{}, new_value};
     for (auto &m : maybe) {
       if (filter(m)) {
         cell.maybe.insert(m);
       }
     }
     return cell;
+  }
+  template<typename T>
+  Cell filter_maybe(T filter) const {
+    return filter_maybe(value, filter);
   }
   template<typename T>
   set<int> get_maybe(T action) const {
@@ -312,13 +311,9 @@ struct State {
     return false;
   }
   bool done() {
-    int count = 0;
-    for (int i = 0; i < n * n; i++) {
-      if (pos(i).value) {
-        count++;
-      }
-    }
-    return count == 3 * n;
+    return 3 * n == count_if(begin(pos_), end(pos_), [](auto &cell) {
+      return cell.value;
+    });
   }
   int n;
   vector<Cell> pos_;
@@ -387,14 +382,14 @@ struct Strategy {
 };
 
 struct Filter {
-  Filter(State &state) : state(state) {
-  }
-  void put(int j, int i, Cell cell) {
+  State &state;
+  map<int, Cell> ans;
+  void put(int j, int i, Cell &&cell) {
     if (state.pos(j, i) != cell) {
       ans.insert(make_pair(state.path.line[j][i], cell));
     }
   }
-  void put(int i, Cell cell) {
+  void put(int i, Cell &&cell) {
     if (state.pos(i) != cell) {
       ans.insert(make_pair(i, cell));
     }
@@ -406,13 +401,11 @@ struct Filter {
     return ans;
   }
   void print() {
-    for (auto x : ans) {
+    for (auto &x : ans) {
       cout << x.first << " ";
     }
     cout << "<br>";
   }
-  State &state;
-  map<int, Cell> ans;
 };
 
 struct AddGivens final : public Strategy {
@@ -423,16 +416,15 @@ struct AddGivens final : public Strategy {
     return "Add givens";
   }
   map<int, Cell> strategy(State &state) override {
-    Filter filter(state);
+    Filter filter{state};
     for (int j = 0; j < state.n; j++) {
       for (int i = 0; i < state.n; i++) {
         if (grid[j][i] != '.') {
           int value = grid[j][i] - '0';
-          Cell cell = state.pos(j, i).filter_maybe([&](const Maybe &m) {
+          filter.put(j, i, state.pos(j, i).filter_maybe(
+              value, [&](const Maybe &m) {
             return m.value == value;
-          });
-          cell.value = value;
-          filter.put(j, i, cell);
+          }));
         }
       }
     }
@@ -451,7 +443,7 @@ struct RemoveCross final : public Strategy {
     return oss.str();
   }
   map<int, Cell> strategy(State &state) override {
-    Filter filter(state);
+    Filter filter{state};
     if (!state.pos(bj, bi).value) {
       return {};
     }
@@ -460,10 +452,9 @@ struct RemoveCross final : public Strategy {
         if ((j == bj && i == bi) || (j != bj && i != bi)) {
           continue;
         }
-        Cell cell = state.pos(j, i).filter_maybe([&](const Maybe &m) {
+        filter.put(j, i, state.pos(j, i).filter_maybe([&](const Maybe &m) {
           return m.value != *state.pos(bj, bi).value;
-        });
-        filter.put(j, i, cell);
+        }));
       }
     }
     if (!filter.empty()) {
@@ -484,7 +475,7 @@ struct DuplicateGroup final : public Strategy {
     return oss.str();
   }
   map<int, Cell> strategy(State &state) override {
-    Filter filter(state);
+    Filter filter{state};
     Maybe goal{digit, group};
     vector<int> order = state.path.forward();
     auto it = find_if(order.begin(), order.end(), [&](int i) {
@@ -498,10 +489,9 @@ struct DuplicateGroup final : public Strategy {
     int ri = distance(order.begin(), it);
     for (int i = 0; i < state.n * state.n; i++) {
       if (i != ri) {
-        Cell cell = state.pos(i).filter_maybe([&](auto &m) {
+        filter.put(i, state.pos(i).filter_maybe([&](auto &m) {
           return goal != m;
-        });
-        filter.put(i, cell);
+        }));
       }
     }
     skip = true;
@@ -522,7 +512,7 @@ struct LimitSequence final : public Strategy {
     return oss.str();
   }
   map<int, Cell> strategy(State &state) override {
-    Filter filter(state);
+    Filter filter{state};
     set<Maybe> maybes;
     if (!state.is_sequence(line)) {
       return {};
@@ -551,10 +541,9 @@ struct LimitSequence final : public Strategy {
       }
     }
     for (int i : line) {
-      Cell cell = state.pos(i).filter_maybe([&](auto &m) {
+      filter.put(i, state.pos(i).filter_maybe([&](auto &m) {
         return find(avoid.begin(), avoid.end(), m) == avoid.end();
-      });
-      filter.put(i, cell);
+      }));
     }
     return filter.flush();
   }
@@ -577,7 +566,7 @@ struct BoundedSequence final : public Strategy {
     return oss.str();
   }
   map<int, Cell> strategy(State &state) override {
-    Filter filter(state);
+    Filter filter{state};
     int current = -1;
     for (int i = 0; i < state.n * state.n; i++) {
       if (state.pos(i).value) {
@@ -594,10 +583,9 @@ struct BoundedSequence final : public Strategy {
             for (int j : line) {
               if (state.pos(j).has_maybe_value(middle) &&
                   (j < current || j > i)) {
-                Cell cell = state.pos(j).filter_maybe([&](auto &m) {
+                filter.put(j, state.pos(j).filter_maybe([&](auto &m) {
                   return m.value != middle;
-                });
-                filter.put(j, cell);
+                }));
               }
             }
             done.insert(make_pair(current, i));
@@ -641,7 +629,7 @@ struct OnlyValue final : public Strategy {
     return oss.str();
   }
   map<int, Cell> strategy(State &state) override {
-    Filter filter(state);
+    Filter filter{state};
     if (state.has_value(line, digit)) {
       skip = true;
       return {};
@@ -653,10 +641,9 @@ struct OnlyValue final : public Strategy {
       return {};
     }
     for (int i : line) {
-      Cell cell = state.pos(i).filter_maybe([&](const Maybe &m) {
+      filter.put(i, state.pos(i).filter_maybe([&](const Maybe &m) {
         return m.value != digit || m.group == group;
-      });
-      filter.put(i, cell);
+      }));
     }
     skip = true;
     return filter.flush();
@@ -680,7 +667,7 @@ struct OnlyGroup final : public Strategy {
     return oss.str();
   }
   map<int, Cell> strategy(State &state) override {
-    Filter filter(state);
+    Filter filter{state};
     if (state.has_value(line, digit)) {
       skip = true;
       return {};
@@ -701,10 +688,9 @@ struct OnlyGroup final : public Strategy {
     set<int> skipline(line.begin(), line.end());
     for (int i : state.path.forward()) {
       if (skipline.find(i) == skipline.end()) {
-        Cell cell = state.pos(i).filter_maybe([&](const Maybe &m) {
+        filter.put(i, state.pos(i).filter_maybe([&](const Maybe &m) {
           return !(m.value == digit && m.group == group);
-        });
-        filter.put(i, cell);
+        }));
       }
     }
     skip = true;
@@ -728,7 +714,7 @@ struct ExactlyNValues final : public Strategy {
     return oss.str();
   }
   map<int, Cell> strategy(State &state) override {
-    Filter filter(state);
+    Filter filter{state};
     if (!state.is_sequence(line)) {
       return {};
     }
@@ -795,7 +781,7 @@ struct SingleLine final : public Strategy {
     return oss.str();
   }
   map<int, Cell> strategy(State &state) override {
-    Filter filter(state);
+    Filter filter{state};
     if (state.has_value(line, digit)) {
       skip = true;
       return {};
@@ -805,11 +791,9 @@ struct SingleLine final : public Strategy {
     }
     for (int j : line) {
       if (state.pos(j).has_maybe_value(digit)) {
-        Cell cell = state.pos(j).filter_maybe([&](auto &m) {
+        filter.put(j, state.pos(j).filter_maybe(digit, [&](auto &m) {
           return m.value == digit;
-        });
-        cell.value = digit;
-        filter.put(j, cell);
+        }));
         skip = true;
       }
     }
@@ -830,16 +814,15 @@ struct SequenceImplication final : public Strategy {
     return dir_name + " implication";
   }
   map<int, Cell> strategy(State &state) override {
-    Filter filter(state);
+    Filter filter{state};
     auto it = state.first_non_empty(order) + 1;
     for (; it != order.end(); ++it) {
       if (state.pos(*it).value && state.pos(*it).maybe.size() == 1) {
         continue;
       }
-      Cell cell = state.pos(*it).filter_maybe([&](const Maybe &m) {
+      filter.put(*it, state.pos(*it).filter_maybe([&](const Maybe &m) {
         return search(state, *(it - 1), m);
-      });
-      filter.put(*it, cell);
+      }));
     }
     return filter.flush();
   }
@@ -882,14 +865,12 @@ struct FixEndpoint final : public Strategy {
     return endpoint_name;
   }
   map<int, Cell> strategy(State &state) override {
-    Filter filter(state);
+    Filter filter{state};
     auto it = state.first_non_empty(order);
     while (!state.pos(*it).has_maybe_value(endpoint.value)) {
-      Cell cell;
-      filter.put(*it++, cell);
+      filter.put(*it++, Cell());
     }
-    Cell cell{set<Maybe>{endpoint}, state.pos(*it).value};
-    filter.put(*it, cell);
+    filter.put(*it, Cell{set<Maybe>{endpoint}, state.pos(*it).value});
     return filter.flush();
   }
 };
