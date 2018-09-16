@@ -21,3 +21,6 @@ clear :
 
 %.mip : %.mip.cc easyscip/easyscip.h
 	g++ -std=c++17 $< -o $@ $(OPT) -lm -lscip
+
+tidy:
+	clang-tidy -checks='bugprone-*,clang-analyzer-*,misc-*,performance-*,portability-*,readability-*' snail.human.cc -- -std=c++17 -stdlib=libc++

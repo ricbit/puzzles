@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <iterator>
 #include <utility>
+#include <memory>
 
 using namespace std;
 using namespace rel_ops;
@@ -292,6 +293,14 @@ struct State {
       return pos(i).has_maybe_value(digit);
     });
   }
+  template<typename T>
+  void iter_grid(T action) const {
+    for (int j = 0; j < n; j++) {
+      for (int i = 0; i < n; i++) {
+        action(j, i);
+      }
+    }
+  }
   bool is_sequence(const vector<int>& line) const {
     set<int> sorted(line.begin(), line.end());
     int current = -1;
@@ -423,17 +432,15 @@ struct AddGivens final : public Strategy {
   }
   map<int, Cell> strategy(const State &state) override {
     Filter filter{state};
-    for (int j = 0; j < state.n; j++) {
-      for (int i = 0; i < state.n; i++) {
-        if (grid[j][i] != '.') {
-          int value = grid[j][i] - '0';
-          filter.put(j, i, state.pos(j, i).filter_maybe(
-              value, [&](const Maybe &m) {
-            return m.value == value;
-          }));
-        }
+    state.iter_grid([&](int j, int i) {
+      if (grid[j][i] != '.') {
+        int value = grid[j][i] - '0';
+        filter.put(j, i, state.pos(j, i).filter_maybe(
+            value, [&](const Maybe &m) {
+          return m.value == value;
+        }));
       }
-    }
+    });
     skip = true;
     return filter.flush();
   }
@@ -453,16 +460,13 @@ struct RemoveCross final : public Strategy {
     if (!state.pos(bj, bi).value) {
       return {};
     }
-    for (int j = 0; j < state.n; j++) {
-      for (int i = 0; i < state.n; i++) {
-        if ((j == bj && i == bi) || (j != bj && i != bi)) {
-          continue;
-        }
+    state.iter_grid([&](int j, int i) {
+      if ((j != bj || i != bi) && (j == bj || i == bi)) {
         filter.put(j, i, state.pos(j, i).filter_maybe([&](const Maybe &m) {
           return m.value != *state.pos(bj, bi).value;
         }));
       }
-    }
+    });
     if (!filter.empty()) {
       skip = true;
     }
@@ -821,13 +825,13 @@ struct SequenceImplication final : public Strategy {
   }
   map<int, Cell> strategy(const State &state) override {
     Filter filter{state};
-    auto it = state.first_non_empty(order) + 1;
+    auto it = next(state.first_non_empty(order));
     for (; it != order.end(); ++it) {
       if (state.pos(*it).value && state.pos(*it).maybe.size() == 1) {
         continue;
       }
       filter.put(*it, state.pos(*it).filter_maybe([&](const Maybe &m) {
-        return search(state, *(it - 1), m);
+        return search(state, *next(it, -1), m);
       }));
     }
     return filter.flush();
@@ -853,9 +857,9 @@ struct SequenceImplication final : public Strategy {
 };
 
 template<typename T>
-SequenceImplication<T> *newSequenceImplication(
+unique_ptr<Strategy> newSequenceImplication(
     const vector<int> order, T action, string name){
-  return new SequenceImplication<T>(order, action, name);
+  return make_unique<SequenceImplication<T>>(order, action, name);
 }
 
 struct FixEndpoint final : public Strategy {
@@ -890,26 +894,26 @@ enum struct Status {
 struct Snail {
   Snail(int n, const vector<string>& grid)
       : n(n), path(n), state(path), printer(path) {
-    easy.push_back(new AddGivens{grid});
+    easy.push_back(make_unique<AddGivens>(grid));
     for (int d = 1; d <= 3; d++) {
       for (int j = 0; j < n; j++) {
-        easy.push_back(new SingleLine{d, path.row(j), "row", j});
-        easy.push_back(new SingleLine{d, path.column(j), "column", j});
+        easy.push_back(make_unique<SingleLine>(d, path.row(j), "row", j));
+        easy.push_back(make_unique<SingleLine>(d, path.column(j), "column", j));
       }
     }
     for (int j = 0; j < n; j++) {
       for (int i = 0 ; i < n; i++) {
-        easy.push_back(new RemoveCross{j, i});
+        easy.push_back(make_unique<RemoveCross>(j, i));
       }
     }
     for (int d = 1; d <= 3; d++) {
       for (int g = 1; g <= n; g++) {
-        easy.push_back(new DuplicateGroup{d, g});
+        easy.push_back(make_unique<DuplicateGroup>(d, g));
       }
     }
-    hard.push_back(new FixEndpoint(
+    hard.push_back(make_unique<FixEndpoint>(
         path.forward(), Maybe{1, 1}, "first"));
-    hard.push_back(new FixEndpoint(
+    hard.push_back(make_unique<FixEndpoint>(
         path.backward(), Maybe{3, n}, "last"));
     hard.push_back(newSequenceImplication(
         path.forward(), [](auto &m){ return m.prev(); }, "Forward"));
@@ -918,40 +922,32 @@ struct Snail {
     for (int d = 1; d <= 3; d++) {
       for (int g = 1; g <= n; g++) {
         for (int i = 0; i < n; i++) {
-          hard.push_back(new OnlyValue(d, g, path.row(i), "row", i));
-          hard.push_back(new OnlyValue(d, g, path.column(i), "column", i));
-          hard.push_back(new OnlyGroup(d, g, path.row(i), "Row", i));
-          hard.push_back(new OnlyGroup(d, g, path.column(i), "Column", i));
+          hard.push_back(make_unique<OnlyValue>(d, g, path.row(i), "row", i));
+          hard.push_back(make_unique<OnlyValue>(d, g, path.column(i), "column", i));
+          hard.push_back(make_unique<OnlyGroup>(d, g, path.row(i), "Row", i));
+          hard.push_back(make_unique<OnlyGroup>(d, g, path.column(i), "Column", i));
         }
       }
     }
     for (int i = 0; i < n; i++) {
-      hard.push_back(new LimitSequence(path.row(i), "row", i));
-      hard.push_back(new LimitSequence(path.column(i), "column", i));
+      hard.push_back(make_unique<LimitSequence>(path.row(i), "row", i));
+      hard.push_back(make_unique<LimitSequence>(path.column(i), "column", i));
     }
     for (int s = 1; s <= 3; s++) {
       for (int e = 1; e <= 3; e++) {
         for (int m = path.modinc(s); m != e; m = path.modinc(m)) {
           for (int i = 0; i < n; i++) {
             hard.push_back(
-                new BoundedSequence(s, e, m, path.row(i), "row", i));
+                make_unique<BoundedSequence>(s, e, m, path.row(i), "row", i));
             hard.push_back(
-                new BoundedSequence(s, e, m, path.column(i), "column", i));
+                make_unique<BoundedSequence>(s, e, m, path.column(i), "column", i));
           }
         }
       }
     }
     for (int i = 0; i < n; i++) {
-      hard.push_back(new ExactlyNValues(3, path.row(i), "Row", i));
-      hard.push_back(new ExactlyNValues(3, path.column(i), "Column", i));
-    }
-  }
-  ~Snail() {
-    for (auto *s : easy) {
-      delete s;
-    }
-    for (auto *s : hard) {
-      delete s;
+      hard.push_back(make_unique<ExactlyNValues>(3, path.row(i), "Row", i));
+      hard.push_back(make_unique<ExactlyNValues>(3, path.column(i), "Column", i));
     }
   }
   void solve() {
@@ -968,7 +964,7 @@ struct Snail {
       }
     }
   }
-  Status round(const vector<Strategy*> &strategies) {
+  Status round(const vector<unique_ptr<Strategy>> &strategies) {
     bool changed = false;
     for (auto &s : strategies) {
       if (s->skip) {
@@ -996,7 +992,7 @@ struct Snail {
   const Path path;
   State state;
   const StatePrinter printer;
-  vector<Strategy*> easy, hard;
+  vector<unique_ptr<Strategy>> easy, hard;
 };
 
 int main() {
