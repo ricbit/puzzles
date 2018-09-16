@@ -44,7 +44,8 @@ struct Coord {
 
 struct Path {
   Path(int n): n(n), grid(n * n), line(n, vector<int>(n)),
-      row_(n), column_(n) {
+      row_(n), column_(n), forward_(build_forward()),
+      backward_(build_backward()) {
     int miny = -1, maxy = n;
     int minx = -1, maxx = n;
     for (int i = 0; i < n * n; i++) {
@@ -101,14 +102,20 @@ struct Path {
       cout << "\n";
     }
   }
-  vector<int> forward() const {
+  const vector<int> forward() const {
+    return forward_;
+  }
+  const vector<int> build_forward() const {
     vector<int> ans;
     for (int i = 0; i < n * n; i++) {
       ans.push_back(i);
     }
     return ans;
   }
-  vector<int> backward() const {
+  const vector<int> backward() const {
+    return backward_;
+  }
+  const vector<int> build_backward() const {
     vector<int> ans;
     for (int i = n * n - 1; i >= 0; i--) {
       ans.push_back(i);
@@ -137,6 +144,7 @@ struct Path {
     return ans;
   }
   vector<vector<int>> row_, column_;
+  const vector<int> forward_, backward_;
   int cury = 0, curx = 0;
   int dir = 0;
   constexpr static int dx[4]{1, 0, -1, 0};
