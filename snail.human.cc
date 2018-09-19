@@ -150,25 +150,18 @@ struct PathBuilder {
   constexpr static int dy[4]{0, 1, 0, -1};
 };
 
-struct Cell {
+struct MaybeSet {
   set<Maybe> maybe;
-  optional<int> value;
-  Cell() = default;
-  Cell(int n) {
-    for (int i = 1; i <= 3; i++) {
-      for (int g = 1; g <= n; g++) {
-        maybe.insert(Maybe{i, g});
-      }
-    }
+  set<Maybe> &operator()() {
+    return maybe;
   }
-  Cell(set<Maybe> maybe, optional<int> value)
-      : maybe(move(maybe)), value(value) {
+  const set<Maybe> &operator()() const {
+    return maybe;
   }
-  bool operator==(const Cell& b) const {
-    return value == b.value &&
-        equal(maybe.begin(), maybe.end(), b.maybe.begin(), b.maybe.end());
+  bool operator==(const MaybeSet &b) const {
+    return equal(maybe.begin(), maybe.end(), b.maybe.begin(), b.maybe.end());
   }
-  bool has_maybe_value(int v) const {
+  bool has_value(int v) const {
     return maybe.end() != find_if(maybe.begin(), maybe.end(), [&](auto &m) {
       return m.value == v;
     });
@@ -179,12 +172,40 @@ struct Cell {
   bool empty() const {
     return maybe.empty();
   }
+};
+
+struct Cell {
+  MaybeSet maybe;
+  optional<int> value;
+  Cell() = default;
+  Cell(int n) {
+    for (int i = 1; i <= 3; i++) {
+      for (int g = 1; g <= n; g++) {
+        maybe().insert(Maybe{i, g});
+      }
+    }
+  }
+  Cell(set<Maybe> maybe, optional<int> value)
+      : maybe{move(maybe)}, value(value) {
+  }
+  bool operator==(const Cell& b) const {
+    return value == b.value && maybe == b.maybe;
+  }
+  bool has_maybe_value(int v) const {
+    return maybe.has_value(v);
+  }
+  bool has_maybe(const Maybe &m) const {
+    return maybe.has_maybe(m);
+  }
+  bool empty() const {
+    return maybe.empty();
+  }
   template<typename T>
   Cell filter_maybe(optional<int> new_value, T filter) const {
     Cell cell{{}, new_value};
-    for (auto &m : maybe) {
+    for (auto &m : maybe()) {
       if (filter(m)) {
-        cell.maybe.insert(m);
+        cell.maybe.maybe.insert(m);
       }
     }
     return cell;
@@ -196,7 +217,7 @@ struct Cell {
   template<typename T>
   set<int> get_maybe(T action) const {
     set<int> seq;
-    transform(maybe.begin(), maybe.end(), inserter(seq, seq.begin()), action);
+    transform(maybe().begin(), maybe().end(), inserter(seq, seq.begin()), action);
     return seq;
   }
 };
@@ -229,7 +250,7 @@ struct CellPrinter {
   }
   string groups_from_value(const Cell &cell, int v) const {
     vector<int> groups;
-    for (auto &m: cell.maybe) {
+    for (auto &m: cell.maybe.maybe) {
       if (m.value == v) {
         groups.push_back(m.group);
       }
@@ -287,7 +308,7 @@ struct State {
   }
   int count_maybe(const vector<int>& line, Maybe &m) const {
     return count_if(line.begin(), line.end(), [&](int i) {
-      return pos(i).maybe.find(m) != pos(i).maybe.end();
+      return pos(i).maybe().find(m) != pos(i).maybe().end();
     });
   }
   auto first_non_empty(const vector<int>& order) const {
@@ -326,7 +347,7 @@ struct State {
   }
   bool has_before(int start, const Maybe &m) const {
     for (int i = 0; i < start; i++) {
-      if (pos(i).maybe.find(m) != pos(i).maybe.end()) {
+      if (pos(i).maybe().find(m) != pos(i).maybe().end()) {
         return true;
       }
     }
@@ -497,8 +518,8 @@ struct DuplicateGroup final : public Strategy {
     vector<int> order = state.path.forward;
     auto it = find_if(order.begin(), order.end(), [&](int i) {
       return state.pos(i).value &&
-             state.pos(i).maybe.size() == 1 &&
-             *(state.pos(i).maybe.begin()) == goal;
+             state.pos(i).maybe().size() == 1 &&
+             *(state.pos(i).maybe().begin()) == goal;
     });
     if (it == order.end()) {
       return {};
@@ -536,7 +557,7 @@ struct LimitSequence final : public Strategy {
     }
     int start = state.n * state.n;
     for (int i : line) {
-      for (auto &m : state.pos(i).maybe) {
+      for (auto &m : state.pos(i).maybe()) {
         maybes.insert(m);
       }
       if (!state.pos(i).empty() && i < start) {
@@ -693,7 +714,7 @@ struct OnlyGroup final : public Strategy {
     int line_count = state.count_maybe(line, m);
     int count = 0;
     for (int i : line) {
-      for (auto &m : state.pos(i).maybe) {
+      for (auto &m : state.pos(i).maybe()) {
         if (m.value == digit) {
           count++;
         }
@@ -741,7 +762,7 @@ struct ExactlyNValues final : public Strategy {
     set<Maybe> first = get_first(state, valid);
     map<int, set<Maybe>> allow;
     for (auto i = valid.begin(); i != valid.end(); ++i) {
-      for (auto &m : state.pos(*i).maybe) {
+      for (auto &m : state.pos(*i).maybe()) {
         if (first.find(m) == first.end()) {
           continue;
         }
@@ -769,12 +790,12 @@ struct ExactlyNValues final : public Strategy {
     set<Maybe> valid;
     for (int i = *min_element(begin(line), end(line)) - 1; i >= 0; i--) {
       if (state.pos(i).value) {
-        for (auto &m : state.pos(i).maybe) {
+        for (auto &m : state.pos(i).maybe()) {
           valid.insert(m.next());
         }
         return valid;
       }
-      for (auto &m : state.pos(i).maybe) {
+      for (auto &m : state.pos(i).maybe()) {
         valid.insert(m);
         valid.insert(m.next());
       }
@@ -834,7 +855,7 @@ struct SequenceImplication final : public Strategy {
     Filter filter{state};
     auto it = next(state.first_non_empty(order));
     for (; it != order.end(); ++it) {
-      if (state.pos(*it).value && state.pos(*it).maybe.size() == 1) {
+      if (state.pos(*it).value && state.pos(*it).maybe().size() == 1) {
         continue;
       }
       filter.put(*it, state.pos(*it).filter_maybe([&](const Maybe &m) {
@@ -849,10 +870,10 @@ struct SequenceImplication final : public Strategy {
     for (; it != reverse.end(); ++it) {
       auto &succ = state.pos(*it).maybe;
       auto &succ_value = state.pos(*it).value;
-      if (succ.find(m) != succ.end() && succ_value) {
+      if (succ.has_maybe(m) && succ_value) {
         return false;
       }
-      if (succ.find(next) != succ.end() || succ.find(m) != succ.end()) {
+      if (succ.has_maybe(next) || succ.has_maybe(m)) {
         return true;
       }
       if (succ_value) {
