@@ -178,6 +178,16 @@ struct MaybeSet {
     copy_if(begin(maybe), end(maybe), inserter(ans, begin(ans)), action);
     return MaybeSet{ans};
   }
+  void fill(int d, int n) {
+    for (int i = 1; i <= d; i++) {
+      for (int g = 1; g <= n; g++) {
+        maybe.insert(Maybe{i, g});
+      }
+    }
+  }
+  auto size() const {
+    return maybe.size();
+  }
 };
 
 struct Cell {
@@ -185,11 +195,7 @@ struct Cell {
   optional<int> value;
   Cell() = default;
   Cell(int n) {
-    for (int i = 1; i <= 3; i++) {
-      for (int g = 1; g <= n; g++) {
-        maybe().insert(Maybe{i, g});
-      }
-    }
+    maybe.fill(3, n);
   }
   Cell(set<Maybe> maybe, optional<int> value)
       : maybe{move(maybe)}, value(value) {
@@ -216,6 +222,9 @@ struct Cell {
     set<int> seq;
     transform(maybe().begin(), maybe().end(), inserter(seq, seq.begin()), action);
     return seq;
+  }
+  bool found() const {
+    return value && maybe.size() == 1;
   }
 };
 
@@ -512,11 +521,9 @@ struct DuplicateGroup final : public Strategy {
   map<int, Cell> strategy(const State &state) override {
     Filter filter{state};
     Maybe goal{digit, group};
-    vector<int> order = state.path.forward;
+    const vector<int> &order = state.path.forward;
     auto it = find_if(order.begin(), order.end(), [&](int i) {
-      return state.pos(i).value &&
-             state.pos(i).maybe().size() == 1 &&
-             *(state.pos(i).maybe().begin()) == goal;
+      return state.pos(i).found() && state.pos(i).maybe.has_maybe(goal);
     });
     if (it == order.end()) {
       return {};
@@ -852,7 +859,7 @@ struct SequenceImplication final : public Strategy {
     Filter filter{state};
     auto it = next(state.first_non_empty(order));
     for (; it != order.end(); ++it) {
-      if (state.pos(*it).value && state.pos(*it).maybe().size() == 1) {
+      if (state.pos(*it).found()) {
         continue;
       }
       filter.put(*it, state.pos(*it).filter_maybe([&](const Maybe &m) {
