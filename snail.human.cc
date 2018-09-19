@@ -188,6 +188,10 @@ struct MaybeSet {
   auto size() const {
     return maybe.size();
   }
+  template<typename T>
+  auto count(T action) const {
+    return count_if(begin(maybe), end(maybe), action);
+  }
 };
 
 struct Cell {
@@ -353,7 +357,7 @@ struct State {
   }
   bool has_before(int start, const Maybe &m) const {
     for (int i = 0; i < start; i++) {
-      if (pos(i).maybe().find(m) != pos(i).maybe().end()) {
+      if (pos(i).maybe.has_maybe(m)) {
         return true;
       }
     }
@@ -361,7 +365,7 @@ struct State {
   }
   bool done() const {
     return 3 * n == count_if(begin(pos_), end(pos_), [](auto &cell) {
-      return cell.value;
+      return cell.value.has_value();
     });
   }
   const int n;
@@ -554,11 +558,11 @@ struct LimitSequence final : public Strategy {
     return oss.str();
   }
   map<int, Cell> strategy(const State &state) override {
-    Filter filter{state};
-    set<Maybe> maybes;
     if (!state.is_sequence(line)) {
       return {};
     }
+    Filter filter{state};
+    set<Maybe> maybes;
     int start = state.n * state.n;
     for (int i : line) {
       for (auto &m : state.pos(i).maybe()) {
@@ -718,11 +722,9 @@ struct OnlyGroup final : public Strategy {
     int line_count = state.count_maybe(line, m);
     int count = 0;
     for (int i : line) {
-      for (auto &m : state.pos(i).maybe()) {
-        if (m.value == digit) {
-          count++;
-        }
-      }
+      count += state.pos(i).maybe.count([&](const auto& m) {
+        return m.value == digit;
+      });
     }
     if (line_count != count) {
       return {};
