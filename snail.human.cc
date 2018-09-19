@@ -43,9 +43,32 @@ struct Coord {
 };
 
 struct Path {
-  Path(int n): n(n), grid(n * n), line(n, vector<int>(n)),
-      row_(n), column_(n), forward_(build_forward()),
-      backward_(build_backward()) {
+  const int n;
+  const vector<Coord> grid;
+  const vector<vector<int>> line;
+  const vector<vector<int>> row, column;
+  const vector<int> forward, backward;
+  int modinc(int a) const {
+    return 1 + ((a - 1) + 1) % 3;
+  }
+  optional<int> move(int j, int i, int dir) const {
+    int nj = j + dy[dir];
+    int ni = i + dx[dir];
+    if (ni < 0 || ni >= n || nj < 0 || nj >= n) {
+      return {};
+    } else {
+      return line[nj][ni];
+    }
+  }
+  constexpr static int dx[4]{1, 0, -1, 0};
+  constexpr static int dy[4]{0, 1, 0, -1};
+};
+
+struct PathBuilder {
+  PathBuilder(int n): n(n), grid(n * n), line(n, vector<int>(n)),
+      row(n), column(n) {
+  }
+  Path build() {
     int miny = -1, maxy = n;
     int minx = -1, maxx = n;
     for (int i = 0; i < n * n; i++) {
@@ -68,31 +91,18 @@ struct Path {
       }
     }
     for (int i = 0; i < n; i++) {
-      row_[i] = build_row(i);
-      column_[i] = build_column(i);
+      row[i] = build_row(i);
+      column[i] = build_column(i);
     }
+    return Path{n, grid, line, row, column, build_forward(), build_backward()};
   }
+ private:
   void change() {
     curx -= dx[dir];
     cury -= dy[dir];
     dir = (dir + 1) % 4;
     curx += dx[dir];
     cury += dy[dir];
-  }
-  optional<int> move(int j, int i, int dir) const {
-    int nj = j + dy[dir];
-    int ni = i + dx[dir];
-    if (ni < 0 || ni >= n || nj < 0 || nj >= n) {
-      return {};
-    } else {
-      return line[nj][ni];
-    }
-  }
-  const vector<int> &column(int c) const {
-    return column_[c];
-  }
-  const vector<int> &row(int c) const {
-    return row_[c];
   }
   void print() const {
     for (int j = 0; j < n; j++) {
@@ -102,18 +112,12 @@ struct Path {
       cout << "\n";
     }
   }
-  const vector<int> forward() const {
-    return forward_;
-  }
   const vector<int> build_forward() const {
     vector<int> ans;
     for (int i = 0; i < n * n; i++) {
       ans.push_back(i);
     }
     return ans;
-  }
-  const vector<int> backward() const {
-    return backward_;
   }
   const vector<int> build_backward() const {
     vector<int> ans;
@@ -122,13 +126,6 @@ struct Path {
     }
     return ans;
   }
-  int modinc(int a) const {
-    return 1 + ((a - 1) + 1) % 3;
-  }
-  const int n;
-  vector<Coord> grid;
-  vector<vector<int>> line;
- private:
   vector<int> build_column(int c) const {
     vector<int> ans;
     for (int i = 0; i < n; i++) {
@@ -143,8 +140,10 @@ struct Path {
     }
     return ans;
   }
-  vector<vector<int>> row_, column_;
-  const vector<int> forward_, backward_;
+  const int n;
+  vector<Coord> grid;
+  vector<vector<int>> line;
+  vector<vector<int>> row, column;
   int cury = 0, curx = 0;
   int dir = 0;
   constexpr static int dx[4]{1, 0, -1, 0};
@@ -495,7 +494,7 @@ struct DuplicateGroup final : public Strategy {
   map<int, Cell> strategy(const State &state) override {
     Filter filter{state};
     Maybe goal{digit, group};
-    vector<int> order = state.path.forward();
+    vector<int> order = state.path.forward;
     auto it = find_if(order.begin(), order.end(), [&](int i) {
       return state.pos(i).value &&
              state.pos(i).maybe.size() == 1 &&
@@ -654,7 +653,7 @@ struct OnlyValue final : public Strategy {
     }
     Maybe m{digit, group};
     int line_count = state.count_maybe(line, m);
-    int grid_count = state.count_maybe(state.path.forward(), m);
+    int grid_count = state.count_maybe(state.path.forward, m);
     if (line_count != grid_count) {
       return {};
     }
@@ -704,7 +703,7 @@ struct OnlyGroup final : public Strategy {
       return {};
     }
     set<int> skipline(line.begin(), line.end());
-    for (int i : state.path.forward()) {
+    for (int i : state.path.forward) {
       if (skipline.find(i) == skipline.end()) {
         filter.put(i, state.pos(i).filter_maybe([&](const Maybe &m) {
           return !(m.value == digit && m.group == group);
@@ -901,12 +900,12 @@ enum struct Status {
 
 struct Snail {
   Snail(int n, const vector<string>& grid)
-      : n(n), path(n), state(path), printer(path) {
+      : n(n), path(PathBuilder(n).build()), state(path), printer(path) {
     easy.push_back(make_unique<AddGivens>(grid));
     for (int d = 1; d <= 3; d++) {
       for (int j = 0; j < n; j++) {
-        easy.push_back(make_unique<SingleLine>(d, path.row(j), "row", j));
-        easy.push_back(make_unique<SingleLine>(d, path.column(j), "column", j));
+        easy.push_back(make_unique<SingleLine>(d, path.row[j], "row", j));
+        easy.push_back(make_unique<SingleLine>(d, path.column[j], "column", j));
       }
     }
     for (int j = 0; j < n; j++) {
@@ -920,42 +919,42 @@ struct Snail {
       }
     }
     hard.push_back(make_unique<FixEndpoint>(
-        path.forward(), Maybe{1, 1}, "first"));
+        path.forward, Maybe{1, 1}, "first"));
     hard.push_back(make_unique<FixEndpoint>(
-        path.backward(), Maybe{3, n}, "last"));
+        path.backward, Maybe{3, n}, "last"));
     hard.push_back(newSequenceImplication(
-        path.forward(), [](auto &m){ return m.prev(); }, "Forward"));
+        path.forward, [](auto &m){ return m.prev(); }, "Forward"));
     hard.push_back(newSequenceImplication(
-        path.backward(), [](auto &m){ return m.next(); }, "Backward"));
+        path.backward, [](auto &m){ return m.next(); }, "Backward"));
     for (int d = 1; d <= 3; d++) {
       for (int g = 1; g <= n; g++) {
         for (int i = 0; i < n; i++) {
-          hard.push_back(make_unique<OnlyValue>(d, g, path.row(i), "row", i));
-          hard.push_back(make_unique<OnlyValue>(d, g, path.column(i), "column", i));
-          hard.push_back(make_unique<OnlyGroup>(d, g, path.row(i), "Row", i));
-          hard.push_back(make_unique<OnlyGroup>(d, g, path.column(i), "Column", i));
+          hard.push_back(make_unique<OnlyValue>(d, g, path.row[i], "row", i));
+          hard.push_back(make_unique<OnlyValue>(d, g, path.column[i], "column", i));
+          hard.push_back(make_unique<OnlyGroup>(d, g, path.row[i], "Row", i));
+          hard.push_back(make_unique<OnlyGroup>(d, g, path.column[i], "Column", i));
         }
       }
     }
     for (int i = 0; i < n; i++) {
-      hard.push_back(make_unique<LimitSequence>(path.row(i), "row", i));
-      hard.push_back(make_unique<LimitSequence>(path.column(i), "column", i));
+      hard.push_back(make_unique<LimitSequence>(path.row[i], "row", i));
+      hard.push_back(make_unique<LimitSequence>(path.column[i], "column", i));
     }
     for (int s = 1; s <= 3; s++) {
       for (int e = 1; e <= 3; e++) {
         for (int m = path.modinc(s); m != e; m = path.modinc(m)) {
           for (int i = 0; i < n; i++) {
             hard.push_back(
-                make_unique<BoundedSequence>(s, e, m, path.row(i), "row", i));
+                make_unique<BoundedSequence>(s, e, m, path.row[i], "row", i));
             hard.push_back(
-                make_unique<BoundedSequence>(s, e, m, path.column(i), "column", i));
+                make_unique<BoundedSequence>(s, e, m, path.column[i], "column", i));
           }
         }
       }
     }
     for (int i = 0; i < n; i++) {
-      hard.push_back(make_unique<ExactlyNValues>(3, path.row(i), "Row", i));
-      hard.push_back(make_unique<ExactlyNValues>(3, path.column(i), "Column", i));
+      hard.push_back(make_unique<ExactlyNValues>(3, path.row[i], "Row", i));
+      hard.push_back(make_unique<ExactlyNValues>(3, path.column[i], "Column", i));
     }
   }
   void solve() {
