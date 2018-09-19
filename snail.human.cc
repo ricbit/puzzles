@@ -197,12 +197,10 @@ struct MaybeSet {
 struct Cell {
   MaybeSet maybe;
   optional<int> value;
+  MaybeSet head, tail;
   Cell() = default;
   Cell(int n) {
     maybe.fill(3, n);
-  }
-  Cell(set<Maybe> maybe, optional<int> value)
-      : maybe{move(maybe)}, value(value) {
   }
   Cell(MaybeSet maybe, optional<int> value)
       : maybe(move(maybe)), value(value) {
@@ -788,7 +786,7 @@ struct ExactlyNValues final : public Strategy {
       }
     }
     for (auto kv : allow) {
-      filter.put(kv.first, Cell(kv.second, state.pos(kv.first).value));
+      filter.put(kv.first, Cell({kv.second}, state.pos(kv.first).value));
     }
     return filter.flush();
   }
@@ -914,7 +912,7 @@ struct FixEndpoint final : public Strategy {
     while (!state.pos(*it).maybe.has_value(endpoint.value)) {
       filter.put(*it++, Cell());
     }
-    filter.put(*it, Cell{set<Maybe>{endpoint}, state.pos(*it).value});
+    filter.put(*it, Cell{{set<Maybe>{endpoint}}, state.pos(*it).value});
     return filter.flush();
   }
 };
