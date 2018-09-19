@@ -204,6 +204,10 @@ struct Cell {
   }
   Cell(MaybeSet maybe, optional<int> value)
       : maybe(move(maybe)), value(value) {
+    if (maybe.size() == 1) {
+      head = maybe;
+      tail = maybe;
+    }
   }
   bool operator==(const Cell& b) const {
     return value == b.value && maybe == b.maybe;
@@ -256,9 +260,9 @@ struct CellPrinter {
     }
     return oss.str();
   }
-  string groups_from_value(const Cell &cell, int v) const {
+  string groups_from_value(const MaybeSet &maybes, int v) const {
     vector<int> groups;
-    for (auto &m: cell.maybe.maybe) {
+    for (auto &m: maybes.maybe) {
       if (m.value == v) {
         groups.push_back(m.group);
       }
@@ -397,6 +401,11 @@ struct StatePrinter {
           oss << "background-color: yellow;";
         }
         oss << "\"><div class=\"content\">";
+        if (!state.pos(j, i).head.empty()) {
+          oss << "<div class=\"headtail\">";
+          oss << print_maybes(state.pos(j, i).head);
+          oss << "</div>";
+        }
         if (state.pos(j, i).value) {
           oss << "<div class=\"maybe-values\">";
           oss << printer.maybe_values(state.pos(j, i)) << "</div>";
@@ -406,19 +415,30 @@ struct StatePrinter {
           oss << printer.maybe_groups(state.pos(j, i)) << "</div>";
           oss << "</div></td>";
         } else {
-          oss << "<div class=\"maybe-values\">";
-          for (int d = 1; d <= 3; d++) {
-            if (state.pos(j, i).maybe.has_value(d)) {
-              oss << d << " : <span class=\"maybe-groups\">";
-              oss << printer.groups_from_value(state.pos(j, i), d);
-              oss << "</span><br>";
-            }
-          }
+          oss << print_maybes(state.pos(j, i).maybe);
+        }
+        if (!state.pos(j, i).tail.empty()) {
+          oss << "<div class=\"headtail\">";
+          oss << print_maybes(state.pos(j, i).tail);
+          oss << "</div>";
         }
       }
       oss << "</tr>";
     }
     oss << "</table></div>\n";
+    return oss.str();
+  }
+  string print_maybes(const MaybeSet &maybes) const {
+    ostringstream oss;
+    oss << "<div class=\"maybe-values\">";
+    for (int d = 1; d <= 3; d++) {
+      if (maybes.has_value(d)) {
+        oss << d << " : <span class=\"maybe-groups\">";
+        oss << printer.groups_from_value(maybes, d);
+        oss << "</span><br>";
+      }
+    }
+    oss << "</div>";
     return oss.str();
   }
   const Path &path;
@@ -1051,6 +1071,7 @@ int main() {
   cout << "        font-weigth: bold}\n";
   cout << ".maybe-values {color: brown;}\n";
   cout << ".maybe-groups {color: green;}\n";
+  cout << ".headtail {color: orange;}\n";
   cout << "</style></head><body>\n";
   Snail snail(n, grid);
   snail.solve();
