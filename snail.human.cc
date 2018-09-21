@@ -202,9 +202,9 @@ struct Cell {
   Cell(int n) {
     maybe.fill(3, n);
   }
-  Cell(MaybeSet maybe, optional<int> value)
-      : maybe(move(maybe)), value(value) {
-    if (maybe.size() == 1) {
+  Cell(MaybeSet newmaybe, optional<int> value)
+      : maybe(move(newmaybe)), value(value) {
+    if (value.has_value()) {
       head = maybe;
       tail = maybe;
     }
@@ -407,13 +407,10 @@ struct StatePrinter {
           oss << "</div>";
         }
         if (state.pos(j, i).value) {
-          oss << "<div class=\"maybe-values\">";
-          oss << printer.maybe_values(state.pos(j, i)) << "</div>";
           oss << "<div class=\"value\">";
           oss << printer.print_value(state.pos(j, i)) << "</div>";
           oss << "<div class=\"maybe-groups\">";
           oss << printer.maybe_groups(state.pos(j, i)) << "</div>";
-          oss << "</div></td>";
         } else {
           oss << print_maybes(state.pos(j, i).maybe);
         }
@@ -422,6 +419,7 @@ struct StatePrinter {
           oss << print_maybes(state.pos(j, i).tail);
           oss << "</div>";
         }
+        oss << "</div></td>";
       }
       oss << "</tr>";
     }
@@ -1006,7 +1004,7 @@ struct Snail {
     while (true) {
       auto easy_status = round(easy);
       if (easy_status == Status::SOLVED) {
-        return;
+        break;
       }
       if (easy_status == Status::CHANGED) {
         continue;
@@ -1014,6 +1012,9 @@ struct Snail {
       if (round(hard) != Status::CHANGED) {
         break;
       }
+    }
+    if (state.done()) {
+      cout << "<div class=\"strategy\">Solved</div>";
     }
   }
   Status round(const vector<unique_ptr<Strategy>> &strategies) {
@@ -1071,7 +1072,7 @@ int main() {
   cout << "        font-weigth: bold}\n";
   cout << ".maybe-values {color: brown;}\n";
   cout << ".maybe-groups {color: green;}\n";
-  cout << ".headtail {color: orange;}\n";
+  cout << ".headtail {background-color: orange;}\n";
   cout << "</style></head><body>\n";
   Snail snail(n, grid);
   snail.solve();

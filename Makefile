@@ -24,3 +24,6 @@ clear :
 
 tidy:
 	clang-tidy -checks='bugprone-*,clang-analyzer-*,misc-*,performance-*,portability-*,readability-*' snail.human.cc -- -std=c++17 -stdlib=libc++
+
+run: snail.human
+	for f in `find data/snail.*`; do (echo $$f `./snail.human < $$f | grep -o "Solved"`); done;
