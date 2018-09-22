@@ -422,12 +422,13 @@ struct StatePrinter {
         if (changed.find(state.path.line[j][i]) != changed.end()) {
           oss << "background-color: yellow;";
         }
-        oss << "\"><div class=\"content\">";
+        oss << "\"><div class=\"outercontent\">";
         if (!state.pos(j, i).head.empty()) {
-          oss << "<div class=\"headtail\">";
+          oss << "<div class=\"head\">";
           oss << print_maybes(state.pos(j, i).head);
           oss << "</div>";
         }
+        oss << "<div class=\"content\">";
         if (state.pos(j, i).value) {
           oss << "<div class=\"value\">";
           oss << printer.print_value(state.pos(j, i)) << "</div>";
@@ -436,8 +437,9 @@ struct StatePrinter {
         } else {
           oss << print_maybes(state.pos(j, i).maybe);
         }
+        oss << "</div>";
         if (!state.pos(j, i).tail.empty()) {
-          oss << "<div class=\"headtail\">";
+          oss << "<div class=\"tail\">";
           oss << print_maybes(state.pos(j, i).tail);
           oss << "</div>";
         }
@@ -1124,20 +1126,23 @@ int main() {
   cout << "<head><style>";
   cout << "table { border-collapse: collapse; margin-bottom: 20px;";
   cout << "        margin-top: 20px; margin-right: 20px;}\n";
-  cout << "td { width: 70px; height: 70px;";
+  cout << "td { width: 70px; height: 70px; padding: 0px;";
   cout << "     margin: 0px; text-align: center}\n";
   cout << ".strategy { margin-top: 20px; ";
   cout << "    display: flex; flex-direction: column; font-size: 20px}\n";
   cout << ".compare {display: flex;}\n";
   cout << ".content {display: flex; flex-direction: column;";
-  cout << "     justify-content: space-between;}\n";
+  cout << "     justify-content: space-evenly; height: 100%;}\n";
+  cout << ".outercontent {display: flex; flex-direction: column;";
+  cout << "     justify-content: space-between; height: 100%;}\n";
   cout << ".maybe-values, .maybe-groups {";
   cout << "     font-size: 12px; font-family: sans-serif;}\n";
   cout << ".value {font-size: 30px; font-family: sans-serif;";
   cout << "        font-weigth: bold}\n";
   cout << ".maybe-values {color: brown;}\n";
   cout << ".maybe-groups {color: green;}\n";
-  cout << ".headtail {background-color: orange;}\n";
+  cout << ".head {background-color: orange;}\n";
+  cout << ".tail {background-color: orange;}\n";
   cout << "</style></head><body>\n";
   Snail snail(n, grid);
   snail.solve();
