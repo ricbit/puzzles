@@ -202,35 +202,57 @@ struct Cell {
   Cell(int n) {
     maybe.fill(3, n);
   }
-  Cell(MaybeSet newmaybe, optional<int> value)
-      : maybe(move(newmaybe)), value(value) {
-    if (value.has_value()) {
-      head = maybe;
-      tail = maybe;
-    }
-  }
   bool operator==(const Cell& b) const {
-    return value == b.value && maybe == b.maybe;
+    return value == b.value && maybe == b.maybe &&
+        head == b.head && tail == b.tail;
   }
   bool empty() const {
     return maybe.empty();
   }
+  Cell with_maybe(MaybeSet newmaybe) const {
+    return Cell{newmaybe, value, head, tail};
+  }
   template<typename T>
   Cell filter_maybe(optional<int> new_value, T filter) const {
-    return Cell{maybe.filter(filter), new_value};
+    return Cell{maybe.filter(filter), new_value, head, tail};
   }
   template<typename T>
   Cell filter_maybe(T filter) const {
     return filter_maybe(value, filter);
   }
+  Cell set_head(const MaybeSet& oldtail) const {
+    MaybeSet newhead;
+    transform(begin(oldtail.maybe), end(oldtail.maybe),
+        inserter(newhead.maybe, begin(newhead.maybe)),
+        [](const Maybe& m) {
+      return m.next();
+    });
+    return Cell{maybe, value, newhead, tail};
+  }
+  Cell set_tail(const MaybeSet& oldhead) const {
+    MaybeSet newtail;
+    transform(begin(oldhead.maybe), end(oldhead.maybe),
+        inserter(newtail.maybe, begin(newtail.maybe)),
+        [](const Maybe& m) {
+      return m.prev();
+    });
+    return Cell{maybe, value, head, newtail};
+  }
   template<typename T>
   set<int> get_maybe(T action) const {
     set<int> seq;
-    transform(maybe().begin(), maybe().end(), inserter(seq, seq.begin()), action);
+    transform(maybe().begin(), maybe().end(),
+        inserter(seq, seq.begin()), action);
     return seq;
   }
   bool found() const {
     return value && maybe.size() == 1;
+  }
+ private:
+  Cell(MaybeSet maybe, optional<int> value, MaybeSet head, MaybeSet tail)
+      : maybe(maybe), value(value),
+        head(value.has_value() ? maybe : head),
+        tail(value.has_value() ? maybe : tail) {
   }
 };
 
@@ -804,7 +826,8 @@ struct ExactlyNValues final : public Strategy {
       }
     }
     for (auto kv : allow) {
-      filter.put(kv.first, Cell({kv.second}, state.pos(kv.first).value));
+      filter.put(kv.first,
+          state.pos(kv.first).with_maybe({kv.second}));
     }
     return filter.flush();
   }
@@ -906,6 +929,46 @@ struct SequenceImplication final : public Strategy {
   }
 };
 
+struct TailPropagation final : public Strategy {
+  string name() override {
+    return "Tail propagation";
+  }
+  map<int, Cell> strategy(const State &state) override {
+    Filter filter{state};
+    for (int i = 0; i < state.n * state.n - 1; i++) {
+      if (!state.pos(i).tail.empty()) {
+        for (int j = i + 1; j < state.n * state.n; j++) {
+          if (!state.pos(j).empty()) {
+            filter.put(j, state.pos(j).set_head(state.pos(i).tail));
+            break;
+          }
+        }
+      }
+    }
+    return filter.flush();  
+  }
+};
+
+struct HeadPropagation final : public Strategy {
+  string name() override {
+    return "Head propagation";
+  }
+  map<int, Cell> strategy(const State &state) override {
+    Filter filter{state};
+    for (int i = state.n * state.n - 1; i > 1; i--) {
+      if (!state.pos(i).head.empty()) {
+        for (int j = i - 1; j >= 0; j--) {
+          if (!state.pos(j).empty()) {
+            filter.put(j, state.pos(j).set_tail(state.pos(i).head));
+            break;
+          }
+        }
+      }
+    }
+    return filter.flush();  
+  }
+};
+ 
 template<typename T>
 unique_ptr<Strategy> newSequenceImplication(
     const vector<int> order, T action, string name){
@@ -930,7 +993,7 @@ struct FixEndpoint final : public Strategy {
     while (!state.pos(*it).maybe.has_value(endpoint.value)) {
       filter.put(*it++, Cell());
     }
-    filter.put(*it, Cell{{set<Maybe>{endpoint}}, state.pos(*it).value});
+    filter.put(*it, state.pos(*it).with_maybe({{endpoint}}));
     return filter.flush();
   }
 };
@@ -999,6 +1062,8 @@ struct Snail {
       hard.push_back(make_unique<ExactlyNValues>(3, path.row[i], "Row", i));
       hard.push_back(make_unique<ExactlyNValues>(3, path.column[i], "Column", i));
     }
+    hard.push_back(make_unique<TailPropagation>());
+    hard.push_back(make_unique<HeadPropagation>());
   }
   void solve() {
     while (true) {
