@@ -52,12 +52,28 @@ struct Line {
   }
 };
 
+struct Path {
+  const vector<int> line;
+  auto begin() const {
+    return line.cbegin();
+  }
+  auto end() const {
+    return line.cend();
+  }
+  auto rbegin() const {
+    return line.crbegin();
+  }
+  auto rend() const {
+    return line.crend();
+  }
+};
+
 struct Geom {
   const int n;
   const vector<Coord> grid;
   const vector<vector<int>> line;
   const vector<Line> row, column;
-  const vector<int> forward, backward;
+  const Path forward, backward;
   int modinc(int a) const {
     return 1 + ((a - 1) + 1) % 3;
   }
@@ -121,14 +137,14 @@ struct GeomBuilder {
       cout << "\n";
     }
   }
-  const vector<int> build_forward() const {
+  const Path build_forward() const {
     vector<int> ans(n * n);
     iota(begin(ans), end(ans), 0);
-    return ans;
+    return {ans};
   }
-  const vector<int> build_backward() const {
-    vector<int> forward = build_forward();
-    return vector<int>(rbegin(forward), rend(forward));
+  const Path build_backward() const {
+    Path forward = build_forward();
+    return {vector<int>(rbegin(forward), rend(forward))};
   }
   Line build_column(int c) const {
     vector<int> ans;
@@ -571,7 +587,7 @@ struct DuplicateGroup final : public Strategy {
   map<int, Cell> strategy(const State &state) override {
     Filter filter{state};
     Maybe goal{digit, group};
-    const vector<int> &order = state.geom.forward;
+    const Path &order = state.geom.forward;
     auto it = find_if(order.begin(), order.end(), [&](int i) {
       return state.pos(i).found() && state.pos(i).maybe.has_maybe(goal);
     });
@@ -894,12 +910,12 @@ struct SingleLine final : public Strategy {
 
 template<typename T>
 struct SequenceImplication final : public Strategy {
-  const vector<int> order, reverse;
+  const Path &order, &reverse;
   T action;
   string dir_name;
-  SequenceImplication(const vector<int> order, T action, string name)
-    : order(order), reverse(order.rbegin(), order.rend()),
-      action(action), dir_name(name) {
+  SequenceImplication(
+      const Path &order, const Path &reverse, T action, string name)
+    : order(order), reverse(reverse), action(action), dir_name(name) {
   }
   string name() override {
     return dir_name + " implication";
@@ -953,7 +969,7 @@ struct TailPropagation final : public Strategy {
         }
       }
     }
-    return filter.flush();  
+    return filter.flush();
   }
 };
 
@@ -973,21 +989,21 @@ struct HeadPropagation final : public Strategy {
         }
       }
     }
-    return filter.flush();  
+    return filter.flush();
   }
 };
- 
+
 template<typename T>
 unique_ptr<Strategy> newSequenceImplication(
-    const vector<int> order, T action, string name){
-  return make_unique<SequenceImplication<T>>(order, action, name);
+    const Path &order, const Path &reverse, T action, string name){
+  return make_unique<SequenceImplication<T>>(order, reverse, action, name);
 }
 
 struct FixEndpoint final : public Strategy {
-  const vector<int> order;
+  const Path &order;
   const Maybe endpoint;
   string endpoint_name;
-  FixEndpoint(const vector<int> order,
+  FixEndpoint(const Path &order,
               const Maybe endpoint, string name)
       : order(order), endpoint(endpoint),
         endpoint_name("Fix " + name + " cell") {
@@ -1037,9 +1053,11 @@ struct Snail {
     hard.push_back(make_unique<FixEndpoint>(
         geom.backward, Maybe{3, n}, "last"));
     hard.push_back(newSequenceImplication(
-        geom.forward, [](auto &m){ return m.prev(); }, "Forward"));
+        geom.forward, geom.backward,
+        [](auto &m){ return m.prev(); }, "Forward"));
     hard.push_back(newSequenceImplication(
-        geom.backward, [](auto &m){ return m.next(); }, "Backward"));
+        geom.backward, geom.forward,
+        [](auto &m){ return m.next(); }, "Backward"));
     for (int d = 1; d <= 3; d++) {
       for (int g = 1; g <= n; g++) {
         for (int i = 0; i < n; i++) {
