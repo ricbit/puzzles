@@ -15,7 +15,7 @@ using namespace std;
 using namespace rel_ops;
 
 struct Maybe {
-  int value, group;
+  const int value, group;
   bool operator<(const Maybe &b) const {
     return make_pair(value, group) < make_pair(b.value, b.group);
   }
@@ -83,8 +83,8 @@ struct GeomBuilder {
     for (int i = 0; i < n * n; i++) {
       grid[i] = Coord{cury, curx};
       line[cury][curx] = i;
-      curx += dx[dir];
-      cury += dy[dir];
+      curx += Geom::dx[dir];
+      cury += Geom::dy[dir];
       if (curx >= maxx) {
         change();
         miny++;
@@ -107,11 +107,11 @@ struct GeomBuilder {
   }
  private:
   void change() {
-    curx -= dx[dir];
-    cury -= dy[dir];
+    curx -= Geom::dx[dir];
+    cury -= Geom::dy[dir];
     dir = (dir + 1) % 4;
-    curx += dx[dir];
-    cury += dy[dir];
+    curx += Geom::dx[dir];
+    cury += Geom::dy[dir];
   }
   void print() const {
     for (int j = 0; j < n; j++) {
@@ -150,8 +150,6 @@ struct GeomBuilder {
   vector<Line> row, column;
   int cury = 0, curx = 0;
   int dir = 0;
-  constexpr static int dx[4]{1, 0, -1, 0};
-  constexpr static int dy[4]{0, 1, 0, -1};
 };
 
 struct MaybeSet {
