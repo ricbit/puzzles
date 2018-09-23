@@ -43,7 +43,7 @@ struct Coord {
 };
 
 struct Line {
-  vector<int> line;
+  const vector<int> line;
   auto begin() const {
     return line.cbegin();
   }
@@ -75,8 +75,7 @@ struct Geom {
 };
 
 struct GeomBuilder {
-  GeomBuilder(int n): n(n), grid(n * n), line(n, vector<int>(n)),
-      row(n), column(n) {
+  GeomBuilder(int n): n(n), grid(n * n), line(n, vector<int>(n)) {
   }
   Geom build() {
     int miny = -1, maxy = n;
@@ -101,8 +100,8 @@ struct GeomBuilder {
       }
     }
     for (int i = 0; i < n; i++) {
-      row[i] = build_row(i);
-      column[i] = build_column(i);
+      row.push_back(build_row(i));
+      column.push_back(build_column(i));
     }
     return Geom{n, grid, line, row, column, build_forward(), build_backward()};
   }
