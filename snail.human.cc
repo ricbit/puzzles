@@ -42,7 +42,14 @@ struct Coord {
   int y, x;
 };
 
-struct Line : vector<int> {
+struct Line {
+  vector<int> line;
+  auto begin() const {
+    return line.cbegin();
+  }
+  auto end() const {
+    return line.cend();
+  }
 };
 
 struct Geom {
@@ -125,18 +132,18 @@ struct GeomBuilder {
     return vector<int>(rbegin(forward), rend(forward));
   }
   Line build_column(int c) const {
-    Line ans;
+    vector<int> ans;
     for (int i = 0; i < n; i++) {
       ans.push_back(line[i][c]);
     }
-    return ans;
+    return {ans};
   }
   Line build_row(int r) const {
-    Line ans;
+    vector<int> ans;
     for (int i = 0; i < n; i++) {
       ans.push_back(line[r][i]);
     }
-    return ans;
+    return {ans};
   }
   const int n;
   vector<Coord> grid;
@@ -333,22 +340,26 @@ struct State {
   Cell &pos(int j, int i) {
     return pos_[geom.line[j][i]];
   }
-  bool has_value(const vector<int>& line, int value) const {
+  template<typename T>
+  bool has_value(const T &line, int value) const {
     return line.end() != find_if(line.begin(), line.end(), [&](int i) {
       return pos(i).value == value;
     });
   }
-  int count_maybe(const vector<int>& line, const Maybe &m) const {
+  template<typename T>
+  int count_maybe(const T& line, const Maybe &m) const {
     return count_if(line.begin(), line.end(), [&](int i) {
       return pos(i).maybe.has_maybe(m);
     });
   }
-  auto first_non_empty(const vector<int>& order) const {
+  template<typename T>
+  auto first_non_empty(const T& order) const {
     return find_if(order.begin(), order.end(), [&](int i) {
       return !pos(i).empty();
     });
   }
-  bool has_single_digit(const vector<int>& line, int digit) const {
+  template<typename T>
+  bool has_single_digit(const T& line, int digit) const {
     return 1 == count_if(line.begin(), line.end(), [&](auto i) {
       return pos(i).maybe.has_value(digit);
     });
@@ -361,7 +372,7 @@ struct State {
       }
     }
   }
-  bool is_sequence(const vector<int>& line) const {
+  bool is_sequence(const Line& line) const {
     set<int> sorted(line.begin(), line.end());
     int current = -1;
     for (int i : sorted) {
@@ -584,10 +595,10 @@ struct DuplicateGroup final : public Strategy {
 };
 
 struct LimitSequence final : public Strategy {
-  const vector<int> line;
+  const Line line;
   string line_name;
   int line_pos;
-  LimitSequence(const vector<int> line, string line_name, int pos)
+  LimitSequence(const Line line, string line_name, int pos)
       : line(line), line_name(line_name), line_pos(pos) {
   }
   string name() override {
@@ -635,11 +646,11 @@ struct LimitSequence final : public Strategy {
 
 struct BoundedSequence final : public Strategy {
   int start, end, middle;
-  const vector<int> line;
+  const Line line;
   string line_name;
   int line_pos;
   BoundedSequence(int start, int end, int middle,
-                  const vector<int> line, string line_name, int pos)
+                  const Line line, string line_name, int pos)
       : start(start), end(end), middle(middle),
         line(line), line_name(line_name), line_pos(pos) {
   }
@@ -698,10 +709,10 @@ struct BoundedSequence final : public Strategy {
 
 struct OnlyValue final : public Strategy {
   int digit, group;
-  const vector<int> line;
+  const Line line;
   string line_name;
   int line_pos;
-  OnlyValue(int d, int g, const vector<int> line,
+  OnlyValue(int d, int g, const Line line,
             string line_name, int pos)
       : digit(d), group(g), line(line),
         line_name(line_name), line_pos(pos) {
@@ -736,10 +747,10 @@ struct OnlyValue final : public Strategy {
 
 struct OnlyGroup final : public Strategy {
   int digit, group;
-  const vector<int> line;
+  const Line line;
   string line_name;
   int line_pos;
-  OnlyGroup(int d, int g, const vector<int> line,
+  OnlyGroup(int d, int g, const Line line,
             string line_name, int pos)
       : digit(d), group(g), line(line),
         line_name(line_name), line_pos(pos) {
@@ -782,10 +793,10 @@ struct OnlyGroup final : public Strategy {
 
 struct ExactlyNValues final : public Strategy {
   int n;
-  const vector<int> line;
+  const Line line;
   string line_name;
   int line_pos;
-  ExactlyNValues(int n, const vector<int> line,
+  ExactlyNValues(int n, const Line line,
             string line_name, int pos)
       : n(n), line(line), line_name(line_name), line_pos(pos) {
   }
@@ -852,10 +863,10 @@ struct ExactlyNValues final : public Strategy {
 
 struct SingleLine final : public Strategy {
   int digit;
-  const vector<int> line;
+  const Line line;
   string line_name;
   int line_pos;
-  SingleLine(int d, const vector<int> line, string line_name, int pos)
+  SingleLine(int d, const Line line, string line_name, int pos)
       : digit(d), line(line), line_name(line_name), line_pos(pos) {
   }
   string name() override {
