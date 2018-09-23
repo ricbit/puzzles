@@ -42,11 +42,14 @@ struct Coord {
   int y, x;
 };
 
+struct Line : vector<int> {
+};
+
 struct Path {
   const int n;
   const vector<Coord> grid;
   const vector<vector<int>> line;
-  const vector<vector<int>> row, column;
+  const vector<Line> row, column;
   const vector<int> forward, backward;
   int modinc(int a) const {
     return 1 + ((a - 1) + 1) % 3;
@@ -113,28 +116,23 @@ struct PathBuilder {
     }
   }
   const vector<int> build_forward() const {
-    vector<int> ans;
-    for (int i = 0; i < n * n; i++) {
-      ans.push_back(i);
-    }
+    vector<int> ans(n * n);
+    iota(begin(ans), end(ans), 0);
     return ans;
   }
   const vector<int> build_backward() const {
-    vector<int> ans;
-    for (int i = n * n - 1; i >= 0; i--) {
-      ans.push_back(i);
-    }
-    return ans;
+    vector<int> forward = build_forward();
+    return vector<int>(rbegin(forward), rend(forward));
   }
-  vector<int> build_column(int c) const {
-    vector<int> ans;
+  Line build_column(int c) const {
+    Line ans;
     for (int i = 0; i < n; i++) {
       ans.push_back(line[i][c]);
     }
     return ans;
   }
-  vector<int> build_row(int r) const {
-    vector<int> ans;
+  Line build_row(int r) const {
+    Line ans;
     for (int i = 0; i < n; i++) {
       ans.push_back(line[r][i]);
     }
@@ -143,7 +141,7 @@ struct PathBuilder {
   const int n;
   vector<Coord> grid;
   vector<vector<int>> line;
-  vector<vector<int>> row, column;
+  vector<Line> row, column;
   int cury = 0, curx = 0;
   int dir = 0;
   constexpr static int dx[4]{1, 0, -1, 0};
@@ -1141,8 +1139,8 @@ int main() {
   cout << "        font-weigth: bold}\n";
   cout << ".maybe-values {color: brown;}\n";
   cout << ".maybe-groups {color: green;}\n";
-  cout << ".head {background-color: orange;}\n";
-  cout << ".tail {background-color: orange;}\n";
+  cout << ".head {background-color: #ffa50061;}\n";
+  cout << ".tail {background-color: #ffa50061;}\n";
   cout << "</style></head><body>\n";
   Snail snail(n, grid);
   snail.solve();
