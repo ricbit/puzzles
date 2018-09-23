@@ -45,7 +45,7 @@ struct Coord {
 struct Line : vector<int> {
 };
 
-struct Path {
+struct Geom {
   const int n;
   const vector<Coord> grid;
   const vector<vector<int>> line;
@@ -67,11 +67,11 @@ struct Path {
   constexpr static int dy[4]{0, 1, 0, -1};
 };
 
-struct PathBuilder {
-  PathBuilder(int n): n(n), grid(n * n), line(n, vector<int>(n)),
+struct GeomBuilder {
+  GeomBuilder(int n): n(n), grid(n * n), line(n, vector<int>(n)),
       row(n), column(n) {
   }
-  Path build() {
+  Geom build() {
     int miny = -1, maxy = n;
     int minx = -1, maxx = n;
     for (int i = 0; i < n * n; i++) {
@@ -97,7 +97,7 @@ struct PathBuilder {
       row[i] = build_row(i);
       column[i] = build_column(i);
     }
-    return Path{n, grid, line, row, column, build_forward(), build_backward()};
+    return Geom{n, grid, line, row, column, build_forward(), build_backward()};
   }
  private:
   void change() {
@@ -318,20 +318,20 @@ struct CellPrinter {
 };
 
 struct State {
-  State(const Path &path)
-      : n(path.n), pos_(n * n, Cell(n)), path(path) {
+  State(const Geom &geom)
+      : n(geom.n), pos_(n * n, Cell(n)), geom(geom) {
   }
   const Cell &pos(int i) const {
     return pos_[i];
   }
   const Cell &pos(int j, int i) const {
-    return pos_[path.line[j][i]];
+    return pos_[geom.line[j][i]];
   }
   Cell &pos(int i) {
     return pos_[i];
   }
   Cell &pos(int j, int i) {
-    return pos_[path.line[j][i]];
+    return pos_[geom.line[j][i]];
   }
   bool has_value(const vector<int>& line, int value) const {
     return line.end() != find_if(line.begin(), line.end(), [&](int i) {
@@ -392,19 +392,19 @@ struct State {
   }
   const int n;
   vector<Cell> pos_;
-  const Path &path;
+  const Geom &geom;
 };
 
 struct StatePrinter {
-  StatePrinter(const Path &path) : path(path), printer() {
+  StatePrinter(const Geom &geom) : geom(geom), printer() {
   }
   string border(int j, int i) const {
     ostringstream oss;
     const static string name[4]{"right", "bottom", "left", "top"};
     for (int d = 1; d <= 4; d++) {
-      auto coord = path.move(j, i, d % 4);
+      auto coord = geom.move(j, i, d % 4);
       oss << "border-" << name[d % 4] << "-width: ";
-      oss << (coord && (abs(*coord - path.line[j][i]) == 1) ? 1 : 3);
+      oss << (coord && (abs(*coord - geom.line[j][i]) == 1) ? 1 : 3);
       oss << "px;";
     }
     return oss.str();
@@ -412,12 +412,12 @@ struct StatePrinter {
   string print(const State &state, const map<int, Cell> &changed) const {
     ostringstream oss;
     oss << "<div><table>";
-    for (int j = 0; j < path.n; j++) {
+    for (int j = 0; j < geom.n; j++) {
       oss << "<tr>";
-      for (int i = 0; i < path.n; i++) {
+      for (int i = 0; i < geom.n; i++) {
         oss << "<td style=\"border-style: solid; border-color: black;";
         oss << border(j, i);
-        if (changed.find(state.path.line[j][i]) != changed.end()) {
+        if (changed.find(state.geom.line[j][i]) != changed.end()) {
           oss << "background-color: yellow;";
         }
         oss << "\"><div class=\"outercontent\">";
@@ -461,7 +461,7 @@ struct StatePrinter {
     oss << "</div>";
     return oss.str();
   }
-  const Path &path;
+  const Geom &geom;
   const CellPrinter printer;
 };
 
@@ -477,7 +477,7 @@ struct Filter {
   map<int, Cell> ans;
   void put(int j, int i, Cell &&cell) {
     if (state.pos(j, i) != cell) {
-      ans.insert(make_pair(state.path.line[j][i], cell));
+      ans.insert(make_pair(state.geom.line[j][i], cell));
     }
   }
   void put(int i, Cell &&cell) {
@@ -563,7 +563,7 @@ struct DuplicateGroup final : public Strategy {
   map<int, Cell> strategy(const State &state) override {
     Filter filter{state};
     Maybe goal{digit, group};
-    const vector<int> &order = state.path.forward;
+    const vector<int> &order = state.geom.forward;
     auto it = find_if(order.begin(), order.end(), [&](int i) {
       return state.pos(i).found() && state.pos(i).maybe.has_maybe(goal);
     });
@@ -720,7 +720,7 @@ struct OnlyValue final : public Strategy {
     }
     Maybe m{digit, group};
     int line_count = state.count_maybe(line, m);
-    int grid_count = state.count_maybe(state.path.forward, m);
+    int grid_count = state.count_maybe(state.geom.forward, m);
     if (line_count != grid_count) {
       return {};
     }
@@ -768,7 +768,7 @@ struct OnlyGroup final : public Strategy {
       return {};
     }
     set<int> skipline(line.begin(), line.end());
-    for (int i : state.path.forward) {
+    for (int i : state.geom.forward) {
       if (skipline.find(i) == skipline.end()) {
         filter.put(i, state.pos(i).filter_maybe([&](const Maybe &m) {
           return !(m.value == digit && m.group == group);
@@ -1006,12 +1006,12 @@ enum struct Status {
 
 struct Snail {
   Snail(int n, const vector<string>& grid)
-      : n(n), path(PathBuilder(n).build()), state(path), printer(path) {
+      : n(n), geom(GeomBuilder(n).build()), state(geom), printer(geom) {
     easy.push_back(make_unique<AddGivens>(grid));
     for (int d = 1; d <= 3; d++) {
       for (int j = 0; j < n; j++) {
-        easy.push_back(make_unique<SingleLine>(d, path.row[j], "row", j));
-        easy.push_back(make_unique<SingleLine>(d, path.column[j], "column", j));
+        easy.push_back(make_unique<SingleLine>(d, geom.row[j], "row", j));
+        easy.push_back(make_unique<SingleLine>(d, geom.column[j], "column", j));
       }
     }
     for (int j = 0; j < n; j++) {
@@ -1025,42 +1025,42 @@ struct Snail {
       }
     }
     hard.push_back(make_unique<FixEndpoint>(
-        path.forward, Maybe{1, 1}, "first"));
+        geom.forward, Maybe{1, 1}, "first"));
     hard.push_back(make_unique<FixEndpoint>(
-        path.backward, Maybe{3, n}, "last"));
+        geom.backward, Maybe{3, n}, "last"));
     hard.push_back(newSequenceImplication(
-        path.forward, [](auto &m){ return m.prev(); }, "Forward"));
+        geom.forward, [](auto &m){ return m.prev(); }, "Forward"));
     hard.push_back(newSequenceImplication(
-        path.backward, [](auto &m){ return m.next(); }, "Backward"));
+        geom.backward, [](auto &m){ return m.next(); }, "Backward"));
     for (int d = 1; d <= 3; d++) {
       for (int g = 1; g <= n; g++) {
         for (int i = 0; i < n; i++) {
-          hard.push_back(make_unique<OnlyValue>(d, g, path.row[i], "row", i));
-          hard.push_back(make_unique<OnlyValue>(d, g, path.column[i], "column", i));
-          hard.push_back(make_unique<OnlyGroup>(d, g, path.row[i], "Row", i));
-          hard.push_back(make_unique<OnlyGroup>(d, g, path.column[i], "Column", i));
+          hard.push_back(make_unique<OnlyValue>(d, g, geom.row[i], "row", i));
+          hard.push_back(make_unique<OnlyValue>(d, g, geom.column[i], "column", i));
+          hard.push_back(make_unique<OnlyGroup>(d, g, geom.row[i], "Row", i));
+          hard.push_back(make_unique<OnlyGroup>(d, g, geom.column[i], "Column", i));
         }
       }
     }
     for (int i = 0; i < n; i++) {
-      hard.push_back(make_unique<LimitSequence>(path.row[i], "row", i));
-      hard.push_back(make_unique<LimitSequence>(path.column[i], "column", i));
+      hard.push_back(make_unique<LimitSequence>(geom.row[i], "row", i));
+      hard.push_back(make_unique<LimitSequence>(geom.column[i], "column", i));
     }
     for (int s = 1; s <= 3; s++) {
       for (int e = 1; e <= 3; e++) {
-        for (int m = path.modinc(s); m != e; m = path.modinc(m)) {
+        for (int m = geom.modinc(s); m != e; m = geom.modinc(m)) {
           for (int i = 0; i < n; i++) {
             hard.push_back(
-                make_unique<BoundedSequence>(s, e, m, path.row[i], "row", i));
+                make_unique<BoundedSequence>(s, e, m, geom.row[i], "row", i));
             hard.push_back(
-                make_unique<BoundedSequence>(s, e, m, path.column[i], "column", i));
+                make_unique<BoundedSequence>(s, e, m, geom.column[i], "column", i));
           }
         }
       }
     }
     for (int i = 0; i < n; i++) {
-      hard.push_back(make_unique<ExactlyNValues>(3, path.row[i], "Row", i));
-      hard.push_back(make_unique<ExactlyNValues>(3, path.column[i], "Column", i));
+      hard.push_back(make_unique<ExactlyNValues>(3, geom.row[i], "Row", i));
+      hard.push_back(make_unique<ExactlyNValues>(3, geom.column[i], "Column", i));
     }
     hard.push_back(make_unique<TailPropagation>());
     hard.push_back(make_unique<HeadPropagation>());
@@ -1107,7 +1107,7 @@ struct Snail {
     return changed ? Status::CHANGED : Status::UNCHANGED;
   }
   const int n;
-  const Path path;
+  const Geom geom;
   State state;
   const StatePrinter printer;
   vector<unique_ptr<Strategy>> easy, hard;
