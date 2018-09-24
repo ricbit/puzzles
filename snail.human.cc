@@ -42,17 +42,7 @@ struct Coord {
   int y, x;
 };
 
-struct Line {
-  const vector<int> line;
-  auto begin() const {
-    return line.cbegin();
-  }
-  auto end() const {
-    return line.cend();
-  }
-};
-
-struct Path {
+struct IntVector {
   const vector<int> line;
   auto begin() const {
     return line.cbegin();
@@ -66,6 +56,18 @@ struct Path {
   auto rend() const {
     return line.crend();
   }
+};
+
+struct Line : IntVector {
+};
+
+struct Path : IntVector {
+};
+
+struct TrimmedPath : IntVector {
+};
+
+struct Sequence : IntVector {
 };
 
 struct Geom {
@@ -385,21 +387,26 @@ struct State {
       }
     }
   }
-  bool is_sequence(const Line& line) const {
-    set<int> sorted(line.begin(), line.end());
-    int current = -1;
-    for (int i : sorted) {
-      if (!pos(i).empty()) {
-        if (current == -1) {
-          current = i;
-        } else if (i == current + 1) {
-          current = i;
-        } else {
-          return false;
-        }
-      }
+  auto trim(const Line& line) const {
+    auto notempty = [&](auto i) { return !pos(i).empty(); };
+    auto first = find_if(line.begin(), line.end(), notempty);
+    auto last = find_if(line.rbegin(), line.rend(), notempty).base();
+    auto trimmed = vector<int>(first, last);
+    return TrimmedPath{trimmed};
+  }
+  optional<Sequence> sequence(const TrimmedPath &path) const {
+    vector<int> sorted(path.begin(), path.end());
+    sort(sorted.begin(), sorted.end());
+    auto check = adjacent_find(sorted.begin(), sorted.end(),
+        [](const auto &a, const auto &b) { return b != a + 1; });
+    if (check == sorted.end()) {
+      return Sequence{sorted};
+    } else {
+      return {};
     }
-    return true;
+  }
+  bool is_sequence(const Line& line) const {
+    return sequence(trim(line)).has_value();
   }
   bool has_before(int start, const Maybe &m) const {
     for (int i = 0; i < start; i++) {
