@@ -871,7 +871,7 @@ struct ExactlyNValues final : public Strategy {
     set<Maybe> valid;
     for (int i = *min_element(begin(line), end(line)) - 1; i >= 0; i--) {
       if (state.pos(i).value) {
-        state.pos(i).maybe.iterate([&](auto &m) {          
+        state.pos(i).maybe.iterate([&](auto &m) {
           valid.insert(m.next());
         });
         return valid;
@@ -972,50 +972,47 @@ struct SequenceImplication final : public Strategy {
   }
 };
 
-struct TailPropagation final : public Strategy {
-  string name() override {
-    return "Tail propagation";
-  }
-  map<int, Cell> strategy(const State &state) override {
-    Filter filter{state};
-    for (int i = 0; i < state.n * state.n - 1; i++) {
-      if (!state.pos(i).tail.empty()) {
-        for (int j = i + 1; j < state.n * state.n; j++) {
-          if (!state.pos(j).empty()) {
-            filter.put(j, state.pos(j).set_head(state.pos(i).tail));
-            break;
-          }
-        }
-      }
-    }
-    return filter.flush();
-  }
-};
-
-struct HeadPropagation final : public Strategy {
-  string name() override {
-    return "Head propagation";
-  }
-  map<int, Cell> strategy(const State &state) override {
-    Filter filter{state};
-    for (int i = state.n * state.n - 1; i > 1; i--) {
-      if (!state.pos(i).head.empty()) {
-        for (int j = i - 1; j >= 0; j--) {
-          if (!state.pos(j).empty()) {
-            filter.put(j, state.pos(j).set_tail(state.pos(i).head));
-            break;
-          }
-        }
-      }
-    }
-    return filter.flush();
-  }
-};
-
 template<typename T>
 unique_ptr<Strategy> newSequenceImplication(
     const Path &order, const Path &reverse, T action, string name){
   return make_unique<SequenceImplication<T>>(order, reverse, action, name);
+}
+
+template<typename Get, typename Set>
+struct HeadTailPropagation final : public Strategy {
+  const string dir_name;
+  const Path &forward;
+  Get get;
+  Set set;
+  HeadTailPropagation(
+      const string &name, const Path &forward, Get get, Set set)
+      : dir_name(name + " propagation"), forward(forward),
+        get(get), set(set) {
+  }
+  string name() override {
+    return dir_name;
+  }
+  map<int, Cell> strategy(const State &state) override {
+    Filter filter{state};
+    for (auto i : forward) {
+      if (!get(state.pos(i)).empty()) {
+        auto start = find(begin(forward), end(forward), i);
+        for (auto j = next(start); j != end(forward); ++j) {
+          if (!state.pos(*j).empty()) {
+            filter.put(*j, set(state.pos(*j), get(state.pos(i))));
+            break;
+          }
+        }
+      }
+    }
+    return filter.flush();
+  }
+};
+
+template<typename Get, typename Set>
+unique_ptr<Strategy> newHeadTailPropagation(
+    const string &name, const Path &forward, Get get, Set set) {
+  return make_unique<HeadTailPropagation<Get, Set>>(name, forward, get, set);
 }
 
 struct FixEndpoint final : public Strategy {
@@ -1096,19 +1093,27 @@ struct Snail {
         for (int m = geom.modinc(s); m != e; m = geom.modinc(m)) {
           for (int i = 0; i < n; i++) {
             hard.push_back(
-                make_unique<BoundedSequence>(s, e, m, geom.row[i], "row", i));
+                make_unique<BoundedSequence>(s, e, m, geom.row[i],
+                  "row", i));
             hard.push_back(
-                make_unique<BoundedSequence>(s, e, m, geom.column[i], "column", i));
+                make_unique<BoundedSequence>(s, e, m, geom.column[i],
+                  "column", i));
           }
         }
       }
     }
     for (int i = 0; i < n; i++) {
-      hard.push_back(make_unique<ExactlyNValues>(3, geom.row[i], "Row", i));
-      hard.push_back(make_unique<ExactlyNValues>(3, geom.column[i], "Column", i));
+      hard.push_back(make_unique<ExactlyNValues>(3, geom.row[i],
+          "Row", i));
+      hard.push_back(make_unique<ExactlyNValues>(3, geom.column[i],
+          "Column", i));
     }
-    hard.push_back(make_unique<TailPropagation>());
-    hard.push_back(make_unique<HeadPropagation>());
+    hard.push_back(newHeadTailPropagation("Tail", geom.forward,
+        [](const auto &m) { return m.tail; },
+        [](auto &m, auto c) { return m.set_head(c); }));
+    hard.push_back(newHeadTailPropagation("Head", geom.backward,
+        [](const auto &m) { return m.head; },
+        [](auto &m, auto c) { return m.set_tail(c); }));
   }
   void solve() {
     while (true) {
