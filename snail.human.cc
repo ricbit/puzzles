@@ -15,7 +15,7 @@ using namespace std;
 using namespace rel_ops;
 
 struct Maybe {
-  const int value, group;
+  int value, group;
   bool operator<(const Maybe &b) const {
     return make_pair(value, group) < make_pair(b.value, b.group);
   }
@@ -25,16 +25,14 @@ struct Maybe {
   Maybe next() const {
     if (value < 3) {
       return Maybe{value + 1, group};
-    } else {
-      return Maybe{1, group + 1};
     }
+    return Maybe{1, group + 1};
   }
   Maybe prev() const {
     if (value > 1) {
       return Maybe{value - 1, group};
-    } else {
-      return Maybe{3, group - 1};
     }
+    return Maybe{3, group - 1};
   }
 };
 
@@ -84,9 +82,8 @@ struct Geom {
     int ni = i + dx[dir];
     if (ni < 0 || ni >= n || nj < 0 || nj >= n) {
       return {};
-    } else {
-      return line[nj][ni];
     }
+    return line[nj][ni];
   }
   constexpr static int dx[4]{1, 0, -1, 0};
   constexpr static int dy[4]{0, 1, 0, -1};
@@ -150,6 +147,7 @@ struct GeomBuilder {
   }
   Line build_column(int c) const {
     vector<int> ans;
+    ans.reserve(n);
     for (int i = 0; i < n; i++) {
       ans.push_back(line[i][c]);
     }
@@ -157,6 +155,7 @@ struct GeomBuilder {
   }
   Line build_row(int r) const {
     vector<int> ans;
+    ans.reserve(n);
     for (int i = 0; i < n; i++) {
       ans.push_back(line[r][i]);
     }
@@ -237,7 +236,7 @@ struct Cell {
     return maybe.empty();
   }
   Cell with_maybe(MaybeSet newmaybe) const {
-    return Cell{newmaybe, value, head, tail};
+    return Cell{move(newmaybe), value, head, tail};
   }
   template<typename T>
   Cell filter_maybe(optional<int> new_value, T filter) const {
@@ -290,9 +289,8 @@ struct CellPrinter {
   string print_value(const Cell& cell) const {
     if (cell.value) {
       return string(1, '0' + *cell.value);
-    } else {
-      return "&nbsp;";
     }
+    return "&nbsp;";
   }
   template<class T>
   string print_values(const T &values) const {
@@ -401,9 +399,8 @@ struct State {
         [](const auto &a, const auto &b) { return b != a + 1; });
     if (check == sorted.end()) {
       return Sequence{sorted};
-    } else {
-      return {};
     }
+    return {};
   }
   bool is_sequence(const Line& line) const {
     return sequence(trim(line)).has_value();
@@ -615,13 +612,16 @@ struct DuplicateGroup final : public Strategy {
 };
 
 struct LimitSequence final : public Strategy {
-  const Line line;
-  string line_name;
+  const Line &line;
+  const string line_name;
   int line_pos;
-  LimitSequence(const Line line, string line_name, int pos)
-      : line(line), line_name(line_name), line_pos(pos) {
+  LimitSequence(const Line &line, const string &line_name, int pos)
+      : line(line), line_name(build_name(line_name)), line_pos(pos) {
   }
   string name() override {
+    return line_name;
+  }
+  string build_name(const string &line_name) const {
     ostringstream oss;
     oss << "Can't have more than 3 digits in " << line_name << " " << line_pos;
     return oss.str();
@@ -666,15 +666,18 @@ struct LimitSequence final : public Strategy {
 
 struct BoundedSequence final : public Strategy {
   int start, end, middle;
-  const Line line;
-  string line_name;
+  const Line &line;
+  const string line_name;
   int line_pos;
   BoundedSequence(int start, int end, int middle,
-                  const Line line, string line_name, int pos)
+                  const Line &line, const string &line_name, int pos)
       : start(start), end(end), middle(middle),
-        line(line), line_name(line_name), line_pos(pos) {
+        line(line), line_name(build_name(line_name)), line_pos(pos) {
   }
   string name() override {
+    return line_name;
+  }
+  string build_name(const string &line_name) const {
     ostringstream oss;
     oss << "Digit " << middle << " between " << start << " and ";
     oss << end << " only appear on " << line_name << " " << line_pos;
@@ -729,11 +732,11 @@ struct BoundedSequence final : public Strategy {
 
 struct OnlyValue final : public Strategy {
   int digit, group;
-  const Line line;
-  string line_name;
+  const Line &line;
+  const string line_name;
   int line_pos;
-  OnlyValue(int d, int g, const Line line,
-            string line_name, int pos)
+  OnlyValue(int d, int g, const Line &line,
+            const string &line_name, int pos)
       : digit(d), group(g), line(line),
         line_name(line_name), line_pos(pos) {
   }
@@ -767,11 +770,11 @@ struct OnlyValue final : public Strategy {
 
 struct OnlyGroup final : public Strategy {
   int digit, group;
-  const Line line;
-  string line_name;
+  const Line &line;
+  const string line_name;
   int line_pos;
-  OnlyGroup(int d, int g, const Line line,
-            string line_name, int pos)
+  OnlyGroup(int d, int g, const Line &line,
+            const string &line_name, int pos)
       : digit(d), group(g), line(line),
         line_name(line_name), line_pos(pos) {
   }
@@ -813,14 +816,16 @@ struct OnlyGroup final : public Strategy {
 
 struct ExactlyNValues final : public Strategy {
   int n;
-  const Line line;
-  string line_name;
+  const Line &line;
+  const string line_name;
   int line_pos;
-  ExactlyNValues(int n, const Line line,
-            string line_name, int pos)
-      : n(n), line(line), line_name(line_name), line_pos(pos) {
+  ExactlyNValues(int n, const Line &line, const string &line_name, int pos)
+      : n(n), line(line), line_name(build_name(line_name)), line_pos(pos) {
   }
   string name() override {
+    return line_name;
+  }
+  const string build_name(const string &line_name) const {
     ostringstream oss;
     oss << line_name << " " << line_pos << " must have exactly ";
     oss << n << " values";
@@ -883,13 +888,16 @@ struct ExactlyNValues final : public Strategy {
 
 struct SingleLine final : public Strategy {
   int digit;
-  const Line line;
-  string line_name;
+  const Line &line;
+  const string line_name;
   int line_pos;
-  SingleLine(int d, const Line line, string line_name, int pos)
-      : digit(d), line(line), line_name(line_name), line_pos(pos) {
+  SingleLine(int d, const Line &line, const string &line_name, int pos)
+      : digit(d), line(line), line_name(build_name(line_name)), line_pos(pos) {
   }
   string name() override {
+    return line_name;
+  }
+  const string build_name(const string &line_name) const {
     ostringstream oss;
     oss << "Single " << digit << " in " << line_name << " " << line_pos;
     return oss.str();
@@ -919,12 +927,16 @@ template<typename T>
 struct SequenceImplication final : public Strategy {
   const Path &order, &reverse;
   T action;
-  string dir_name;
+  const string dir_name;
   SequenceImplication(
-      const Path &order, const Path &reverse, T action, string name)
-    : order(order), reverse(reverse), action(action), dir_name(name) {
+      const Path &order, const Path &reverse, T action, const string &name)
+    : order(order), reverse(reverse), action(action),
+      dir_name(build_name(name)) {
   }
   string name() override {
+    return dir_name;
+  }
+  const string build_name(const string &dir_name) const {
     return dir_name + " implication";
   }
   map<int, Cell> strategy(const State &state) override {
@@ -1009,9 +1021,9 @@ unique_ptr<Strategy> newSequenceImplication(
 struct FixEndpoint final : public Strategy {
   const Path &order;
   const Maybe endpoint;
-  string endpoint_name;
+  const string endpoint_name;
   FixEndpoint(const Path &order,
-              const Maybe endpoint, string name)
+              const Maybe endpoint, const string &name)
       : order(order), endpoint(endpoint),
         endpoint_name("Fix " + name + " cell") {
   }
