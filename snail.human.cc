@@ -62,7 +62,7 @@ struct Line : IntVector {
 struct Path : IntVector {
 };
 
-struct TrimmedPath : IntVector {
+struct TrimmedLine : IntVector {
 };
 
 struct Sequence : IntVector {
@@ -390,10 +390,10 @@ struct State {
     auto first = find_if(line.begin(), line.end(), notempty);
     auto last = find_if(line.rbegin(), line.rend(), notempty).base();
     auto trimmed = vector<int>(first, last);
-    return TrimmedPath{trimmed};
+    return TrimmedLine{trimmed};
   }
-  optional<Sequence> sequence(const TrimmedPath &path) const {
-    vector<int> sorted(path.begin(), path.end());
+  optional<Sequence> sequence(const TrimmedLine &line) const {
+    vector<int> sorted(line.begin(), line.end());
     sort(sorted.begin(), sorted.end());
     auto check = adjacent_find(sorted.begin(), sorted.end(),
         [](const auto &a, const auto &b) { return b != a + 1; });
