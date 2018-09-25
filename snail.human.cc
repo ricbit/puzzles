@@ -206,7 +206,7 @@ struct MaybeSet {
     return count_if(begin(maybe), end(maybe), action);
   }
   template<typename T>
-  set<int> get_maybe(T action) const {
+  set<int> extract(T action) const {
     set<int> seq;
     transform(maybe.begin(), maybe.end(),
         inserter(seq, seq.begin()), action);
@@ -277,12 +277,12 @@ struct Cell {
 
 struct CellPrinter {
   string maybe_values(const Cell &cell) const {
-    return print_values(cell.maybe.get_maybe([](auto &m) {
+    return print_values(cell.maybe.extract([](auto &m) {
       return m.value;
     }));
   }
   string maybe_groups(const Cell &cell) const {
-    return format_sequence(cell.maybe.get_maybe([](auto &m) {
+    return format_sequence(cell.maybe.extract([](auto &m) {
       return m.group;
     }));
   }
@@ -424,8 +424,6 @@ struct State {
 };
 
 struct StatePrinter {
-  StatePrinter(const Geom &geom) : geom(geom), printer() {
-  }
   string border(int j, int i) const {
     ostringstream oss;
     const static string name[4]{"right", "bottom", "left", "top"};
@@ -1046,7 +1044,7 @@ enum struct Status {
 
 struct Snail {
   Snail(int n, const vector<string>& grid)
-      : n(n), geom(GeomBuilder(n).build()), state(geom), printer(geom) {
+      : n(n), geom(GeomBuilder(n).build()), state(geom), printer{geom} {
     easy.push_back(make_unique<AddGivens>(grid));
     for (int d = 1; d <= 3; d++) {
       for (int j = 0; j < n; j++) {
