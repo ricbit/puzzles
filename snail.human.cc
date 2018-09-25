@@ -172,12 +172,6 @@ struct GeomBuilder {
 
 struct MaybeSet {
   set<Maybe> maybe;
-  set<Maybe> &operator()() {
-    return maybe;
-  }
-  const set<Maybe> &operator()() const {
-    return maybe;
-  }
   bool operator==(const MaybeSet &b) const {
     return equal(maybe.begin(), maybe.end(), b.maybe.begin(), b.maybe.end());
   }
@@ -211,6 +205,19 @@ struct MaybeSet {
   template<typename T>
   auto count(T action) const {
     return count_if(begin(maybe), end(maybe), action);
+  }
+  template<typename T>
+  set<int> get_maybe(T action) const {
+    set<int> seq;
+    transform(maybe.begin(), maybe.end(),
+        inserter(seq, seq.begin()), action);
+    return seq;
+  }
+  template<typename T>
+  void iterate(T action) const {
+    for (const auto &m : maybe) {
+      action(m);
+    }
   }
 };
 
@@ -258,13 +265,6 @@ struct Cell {
     });
     return Cell{maybe, value, head, newtail};
   }
-  template<typename T>
-  set<int> get_maybe(T action) const {
-    set<int> seq;
-    transform(maybe().begin(), maybe().end(),
-        inserter(seq, seq.begin()), action);
-    return seq;
-  }
   bool found() const {
     return value && maybe.size() == 1;
   }
@@ -278,12 +278,12 @@ struct Cell {
 
 struct CellPrinter {
   string maybe_values(const Cell &cell) const {
-    return print_values(cell.get_maybe([](auto &m) {
+    return print_values(cell.maybe.get_maybe([](auto &m) {
       return m.value;
     }));
   }
   string maybe_groups(const Cell &cell) const {
-    return format_sequence(cell.get_maybe([](auto &m) {
+    return format_sequence(cell.maybe.get_maybe([](auto &m) {
       return m.group;
     }));
   }
@@ -634,9 +634,9 @@ struct LimitSequence final : public Strategy {
     set<Maybe> maybes;
     int start = state.n * state.n;
     for (int i : line) {
-      for (auto &m : state.pos(i).maybe()) {
+      state.pos(i).maybe.iterate([&](auto &m) {
         maybes.insert(m);
-      }
+      });
       if (!state.pos(i).empty() && i < start) {
         start = i;
       }
@@ -837,9 +837,9 @@ struct ExactlyNValues final : public Strategy {
     set<Maybe> first = get_first(state, valid);
     map<int, set<Maybe>> allow;
     for (auto i = valid.begin(); i != valid.end(); ++i) {
-      for (auto &m : state.pos(*i).maybe()) {
+      state.pos(*i).maybe.iterate([&](auto &m) {
         if (first.find(m) == first.end()) {
-          continue;
+          return;
         }
         auto m2 = m.next();
         for (auto i2 = next(i); i2 != valid.end(); ++i2) {
@@ -854,7 +854,7 @@ struct ExactlyNValues final : public Strategy {
             }
           }
         }
-      }
+      });
     }
     for (auto kv : allow) {
       filter.put(kv.first,
@@ -866,15 +866,15 @@ struct ExactlyNValues final : public Strategy {
     set<Maybe> valid;
     for (int i = *min_element(begin(line), end(line)) - 1; i >= 0; i--) {
       if (state.pos(i).value) {
-        for (auto &m : state.pos(i).maybe()) {
+        state.pos(i).maybe.iterate([&](auto &m) {          
           valid.insert(m.next());
-        }
+        });
         return valid;
       }
-      for (auto &m : state.pos(i).maybe()) {
+      state.pos(i).maybe.iterate([&](auto &m) {
         valid.insert(m);
         valid.insert(m.next());
-      }
+      });
     }
     valid.insert(Maybe{1, 1});
     return valid;
