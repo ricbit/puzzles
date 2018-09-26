@@ -246,22 +246,21 @@ struct Cell {
   Cell filter_maybe(T filter) const {
     return filter_maybe(value, filter);
   }
-  Cell set_head(const MaybeSet& oldtail) const {
+  Cell set_value(optional<int> new_value) const {
+    return Cell{maybe, new_value, head, tail};
+  }
+  template<typename T>
+  Cell set_head(const MaybeSet& oldtail, T action) const {
     MaybeSet newhead;
     transform(begin(oldtail.maybe), end(oldtail.maybe),
-        inserter(newhead.maybe, begin(newhead.maybe)),
-        [](const Maybe& m) {
-      return m.next();
-    });
+        inserter(newhead.maybe, begin(newhead.maybe)), action);
     return Cell{maybe, value, newhead, tail};
   }
-  Cell set_tail(const MaybeSet& oldhead) const {
+  template<typename T>
+  Cell set_tail(const MaybeSet& oldhead, T action) const {
     MaybeSet newtail;
     transform(begin(oldhead.maybe), end(oldhead.maybe),
-        inserter(newtail.maybe, begin(newtail.maybe)),
-        [](const Maybe& m) {
-      return m.prev();
-    });
+        inserter(newtail.maybe, begin(newtail.maybe)), action);
     return Cell{maybe, value, head, newtail};
   }
   bool found() const {
@@ -612,14 +611,13 @@ struct DuplicateGroup final : public Strategy {
 struct LimitSequence final : public Strategy {
   const Line &line;
   const string line_name;
-  int line_pos;
-  LimitSequence(const Line &line, const string &line_name, int pos)
-      : line(line), line_name(build_name(line_name)), line_pos(pos) {
+  LimitSequence(const Line &line, const string &line_name_, int pos)
+      : line(line), line_name(build_name(line_name_, pos)) {
   }
   string name() override {
     return line_name;
   }
-  string build_name(const string &line_name) const {
+  string build_name(const string &line_name, int line_pos) const {
     ostringstream oss;
     oss << "Can't have more than 3 digits in " << line_name << " " << line_pos;
     return oss.str();
@@ -666,16 +664,16 @@ struct BoundedSequence final : public Strategy {
   int start, end, middle;
   const Line &line;
   const string line_name;
-  int line_pos;
   BoundedSequence(int start, int end, int middle,
                   const Line &line, const string &line_name, int pos)
       : start(start), end(end), middle(middle),
-        line(line), line_name(build_name(line_name)), line_pos(pos) {
+        line(line), line_name(build_name(line_name, start, end, middle, pos)) {
   }
   string name() override {
     return line_name;
   }
-  string build_name(const string &line_name) const {
+  string build_name(const string &line_name,
+      int start, int end, int middle, int line_pos) const {
     ostringstream oss;
     oss << "Digit " << middle << " between " << start << " and ";
     oss << end << " only appear on " << line_name << " " << line_pos;
@@ -816,14 +814,13 @@ struct ExactlyNValues final : public Strategy {
   int n;
   const Line &line;
   const string line_name;
-  int line_pos;
-  ExactlyNValues(int n, const Line &line, const string &line_name, int pos)
-      : n(n), line(line), line_name(build_name(line_name)), line_pos(pos) {
+  ExactlyNValues(int n_, const Line &line_, const string &line_name_, int pos_)
+      : n(n_), line(line_), line_name(build_name(line_name_, n_, pos_)) {
   }
   string name() override {
     return line_name;
   }
-  const string build_name(const string &line_name) const {
+  const string build_name(const string &line_name, int n, int line_pos) const {
     ostringstream oss;
     oss << line_name << " " << line_pos << " must have exactly ";
     oss << n << " values";
@@ -888,14 +885,14 @@ struct SingleLine final : public Strategy {
   int digit;
   const Line &line;
   const string line_name;
-  int line_pos;
   SingleLine(int d, const Line &line, const string &line_name, int pos)
-      : digit(d), line(line), line_name(build_name(line_name)), line_pos(pos) {
+      : digit(d), line(line), line_name(build_name(line_name, d, pos)) {
   }
   string name() override {
     return line_name;
   }
-  const string build_name(const string &line_name) const {
+  const string build_name(const string &line_name,
+      int digit, int line_pos) const {
     ostringstream oss;
     oss << "Single " << digit << " in " << line_name << " " << line_pos;
     return oss.str();
@@ -1013,6 +1010,40 @@ unique_ptr<Strategy> newHeadTailPropagation(
   return make_unique<HeadTailPropagation<Get, Set>>(name, forward, get, set);
 }
 
+struct CompleteSequence final : public Strategy {
+  const Line &line;
+  const string line_name;
+  CompleteSequence(const Line &line, const string &line_name, int pos)
+      : line(line), line_name(build_name(line_name, pos)) {
+  }
+  string name() override {
+    return line_name;
+  }
+  const string build_name(const string &line_name, int line_pos) const {
+    ostringstream oss;
+    oss << "Complete head and tail in " << line_name << " " << line_pos;
+    return oss.str();
+  }
+  map<int, Cell> strategy(const State &state) override {
+    auto seq = state.sequence(state.trim(line));
+    if (!seq.has_value()) {
+      return {};
+    }
+    Filter filter{state};
+    const auto &first = *seq->begin();
+    const auto &last = *seq->rbegin();
+    if (state.pos(last).tail.empty() && !state.pos(first).head.empty()) {
+      filter.put(last, state.pos(last).set_tail(state.pos(first).head,
+          [](const Maybe& m) { return m.next().next(); }));
+    }
+    if (!state.pos(last).tail.empty() && state.pos(first).head.empty()) {
+      filter.put(first, state.pos(first).set_head(state.pos(last).tail,
+          [](const Maybe& m) { return m.prev().prev(); }));
+    }
+    return filter.flush();
+  }
+};
+
 struct FixEndpoint final : public Strategy {
   const Path &order;
   const Maybe endpoint;
@@ -1108,10 +1139,20 @@ struct Snail {
     }
     hard.push_back(newHeadTailPropagation("Tail", geom.forward,
         [](const auto &m) { return m.tail; },
-        [](auto &m, auto c) { return m.set_head(c); }));
+        [](auto &m, auto c) { return m.set_head(
+            c, [](const Maybe& m) { return m.next(); });
+        }));
     hard.push_back(newHeadTailPropagation("Head", geom.backward,
         [](const auto &m) { return m.head; },
-        [](auto &m, auto c) { return m.set_tail(c); }));
+        [](auto &m, auto c) { return m.set_tail(
+            c, [](const Maybe& m) { return m.prev(); });
+        }));
+    for (int i = 0; i < n; i++) {
+      hard.push_back(make_unique<CompleteSequence>(geom.row[i],
+          "Row", i));
+      hard.push_back(make_unique<CompleteSequence>(geom.column[i],
+          "Column", i));
+    }
   }
   void solve() {
     while (true) {
