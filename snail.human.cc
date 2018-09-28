@@ -239,15 +239,13 @@ struct Cell {
     return Cell{move(newmaybe), value, head, tail};
   }
   template<typename T>
-  Cell filter_maybe(optional<int> new_value, T filter) const {
-    return Cell{maybe.filter(filter), new_value, head, tail};
-  }
-  template<typename T>
   Cell filter_maybe(T filter) const {
-    return filter_maybe(value, filter);
+    return Cell{maybe.filter(filter), value, head, tail};
   }
-  Cell set_value(optional<int> new_value) const {
-    return Cell{maybe, new_value, head, tail};
+  Cell set_value(int new_value) const {
+    return Cell{maybe.filter([new_value](const Maybe &m) {
+      return m.value == new_value;
+    }), new_value, head, tail};
   }
   template<typename T>
   Cell set_head(const MaybeSet& oldtail, T action) const {
@@ -537,10 +535,7 @@ struct AddGivens final : public Strategy {
     state.iter_grid([&](int j, int i) {
       if (grid[j][i] != '.') {
         int value = grid[j][i] - '0';
-        filter.put(j, i, state.pos(j, i).filter_maybe(
-            value, [&](const Maybe &m) {
-          return m.value == value;
-        }));
+        filter.put(j, i, state.pos(j, i).set_value(value));
       }
     });
     skip = true;
@@ -909,9 +904,7 @@ struct SingleLine final : public Strategy {
     }
     for (int j : line) {
       if (state.pos(j).maybe.has_value(digit)) {
-        filter.put(j, state.pos(j).filter_maybe(digit, [&](auto &m) {
-          return m.value == digit;
-        }));
+        filter.put(j, state.pos(j).set_value(digit));
         skip = true;
       }
     }
@@ -1282,6 +1275,7 @@ struct NullPrinter {
       const State &/*unused*/, const map<int, Cell> &/*unused*/) const {
   }
   void solved() const {
+    cout << "Solved\n";
   }
   void strategy_header(const string &/*unused*/) const {
   }
@@ -1296,7 +1290,7 @@ int main() {
   for (int i = 0; i < n; i++) {
     cin >> grid[i];
   }
-  SnailPrinter printer;
+  NullPrinter printer;
   Snail snail(n, grid, printer);
   snail.solve();
   return 0;
