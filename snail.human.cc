@@ -423,7 +423,9 @@ struct State {
 };
 
 struct StatePrinter {
-  string border(int j, int i) const {
+  StatePrinter() : printer() {
+  }
+  string border(const Geom &geom, int j, int i) const {
     ostringstream oss;
     const static string name[4]{"right", "bottom", "left", "top"};
     for (int d = 1; d <= 4; d++) {
@@ -437,11 +439,11 @@ struct StatePrinter {
   string print(const State &state, const map<int, Cell> &changed) const {
     ostringstream oss;
     oss << "<div><table>";
-    for (int j = 0; j < geom.n; j++) {
+    for (int j = 0; j < state.geom.n; j++) {
       oss << "<tr>";
-      for (int i = 0; i < geom.n; i++) {
+      for (int i = 0; i < state.geom.n; i++) {
         oss << "<td style=\"border-style: solid; border-color: black;";
-        oss << border(j, i);
+        oss << border(state.geom, j, i);
         if (changed.find(state.geom.line[j][i]) != changed.end()) {
           oss << "background-color: yellow;";
         }
@@ -486,7 +488,6 @@ struct StatePrinter {
     oss << "</div>";
     return oss.str();
   }
-  const Geom &geom;
   const CellPrinter printer;
 };
 
@@ -1044,6 +1045,35 @@ struct CompleteSequence final : public Strategy {
   }
 };
 
+struct UnitSequence final : public Strategy {
+  int row, column;
+  const string description;
+  UnitSequence(int row_, int column_)
+      : row(row_), column(column_), description(build_name(row, column)) {
+  }
+  string name() override {
+    return description;
+  }
+  const string build_name(int row, int column) const {
+    ostringstream oss;
+    oss << "Equal head and tail in row " << row << " column " << column;
+    return oss.str();
+  }
+  map<int, Cell> strategy(const State &state) override {
+    auto &cell = state.pos(row, column);
+    if (cell.value.has_value() || (cell.head != cell.tail)) {
+      return {};
+    }
+    Filter filter{state};
+    for (int d = 1; d <= 3; d++) {
+      if (cell.head.has_value(d)) {
+        filter.put(row, column, cell.set_value(d));
+      }
+    }
+    return filter.flush();
+  }
+};
+
 struct FixEndpoint final : public Strategy {
   const Path &order;
   const Maybe endpoint;
@@ -1073,9 +1103,10 @@ enum struct Status {
   UNCHANGED
 };
 
+template<typename SnailPrinter>
 struct Snail {
-  Snail(int n, const vector<string>& grid)
-      : n(n), geom(GeomBuilder(n).build()), state(geom), printer{geom} {
+  Snail(int n, const vector<string>& grid, SnailPrinter printer)
+      : n(n), geom(GeomBuilder(n).build()), state(geom), printer(printer) {
     easy.push_back(make_unique<AddGivens>(grid));
     for (int d = 1; d <= 3; d++) {
       for (int j = 0; j < n; j++) {
@@ -1086,6 +1117,7 @@ struct Snail {
     for (int j = 0; j < n; j++) {
       for (int i = 0 ; i < n; i++) {
         easy.push_back(make_unique<RemoveCross>(j, i));
+        easy.push_back(make_unique<UnitSequence>(j, i));
       }
     }
     for (int d = 1; d <= 3; d++) {
@@ -1168,7 +1200,7 @@ struct Snail {
       }
     }
     if (state.done()) {
-      cout << "<div class=\"strategy\">Solved</div>";
+      printer.solved();
     }
   }
   Status round(const vector<unique_ptr<Strategy>> &strategies) {
@@ -1179,14 +1211,13 @@ struct Snail {
       }
       auto ans = s->strategy(state);
       if (!ans.empty()) {
-        cout << "<div class=\"strategy\"><div>" << s->name() << "</div>";
-        cout << "<div class=\"compare\">";
-        cout << printer.print(state, ans);
+        printer.strategy_header(s->name());
+        printer.print_state(state, ans);
         for (auto &x : ans) {
           state.pos(x.first) = x.second;
         }
-        cout << printer.print(state, ans);
-        cout << "</div></div><hr>";
+        printer.print_state(state, ans);
+        printer.strategy_footer();
         if (state.done()) {
           return Status::SOLVED;
         }
@@ -1198,8 +1229,64 @@ struct Snail {
   const int n;
   const Geom geom;
   State state;
-  const StatePrinter printer;
+  const SnailPrinter printer;
   vector<unique_ptr<Strategy>> easy, hard;
+};
+
+struct SnailPrinter {
+  SnailPrinter() : state_printer() {
+    cout << "<html>";
+    cout << "<head><style>";
+    cout << "table { border-collapse: collapse; margin-bottom: 20px;";
+    cout << "        margin-top: 20px; margin-right: 20px;}\n";
+    cout << "td { width: 70px; height: 70px; padding: 0px;";
+    cout << "     margin: 0px; text-align: center}\n";
+    cout << ".strategy { margin-top: 20px; ";
+    cout << "    display: flex; flex-direction: column; font-size: 20px}\n";
+    cout << ".compare {display: flex;}\n";
+    cout << ".content {display: flex; flex-direction: column;";
+    cout << "     justify-content: space-evenly; height: 100%;}\n";
+    cout << ".outercontent {display: flex; flex-direction: column;";
+    cout << "     justify-content: space-between; height: 100%;}\n";
+    cout << ".maybe-values, .maybe-groups {";
+    cout << "     font-size: 12px; font-family: sans-serif;}\n";
+    cout << ".value {font-size: 30px; font-family: sans-serif;";
+    cout << "        font-weigth: bold}\n";
+    cout << ".maybe-values {color: brown;}\n";
+    cout << ".maybe-groups {color: green;}\n";
+    cout << ".head {background-color: #ffa50061;}\n";
+    cout << ".tail {background-color: #ffa50061;}\n";
+    cout << "</style></head><body>\n";
+  }
+  ~SnailPrinter() {
+    cout << "</body></html>";
+  }
+  void print_state(const State &state, const map<int, Cell> &changed) const {
+    cout << state_printer.print(state, changed);
+  }
+  void solved() const {
+    cout << "<div class=\"strategy\">Solved</div>";
+  }
+  void strategy_header(const string &name) const {
+    cout << "<div class=\"strategy\"><div>" << name << "</div>";
+    cout << "<div class=\"compare\">";
+  }
+  void strategy_footer() const {
+    cout << "</div></div><hr>";
+  }
+  const StatePrinter state_printer;
+};
+
+struct NullPrinter {
+  void print_state(
+      const State &/*unused*/, const map<int, Cell> &/*unused*/) const {
+  }
+  void solved() const {
+  }
+  void strategy_header(const string &/*unused*/) const {
+  }
+  void strategy_footer() const {
+  }
 };
 
 int main() {
@@ -1209,30 +1296,8 @@ int main() {
   for (int i = 0; i < n; i++) {
     cin >> grid[i];
   }
-  cout << "<html>";
-  cout << "<head><style>";
-  cout << "table { border-collapse: collapse; margin-bottom: 20px;";
-  cout << "        margin-top: 20px; margin-right: 20px;}\n";
-  cout << "td { width: 70px; height: 70px; padding: 0px;";
-  cout << "     margin: 0px; text-align: center}\n";
-  cout << ".strategy { margin-top: 20px; ";
-  cout << "    display: flex; flex-direction: column; font-size: 20px}\n";
-  cout << ".compare {display: flex;}\n";
-  cout << ".content {display: flex; flex-direction: column;";
-  cout << "     justify-content: space-evenly; height: 100%;}\n";
-  cout << ".outercontent {display: flex; flex-direction: column;";
-  cout << "     justify-content: space-between; height: 100%;}\n";
-  cout << ".maybe-values, .maybe-groups {";
-  cout << "     font-size: 12px; font-family: sans-serif;}\n";
-  cout << ".value {font-size: 30px; font-family: sans-serif;";
-  cout << "        font-weigth: bold}\n";
-  cout << ".maybe-values {color: brown;}\n";
-  cout << ".maybe-groups {color: green;}\n";
-  cout << ".head {background-color: #ffa50061;}\n";
-  cout << ".tail {background-color: #ffa50061;}\n";
-  cout << "</style></head><body>\n";
-  Snail snail(n, grid);
+  NullPrinter printer;
+  Snail snail(n, grid, printer);
   snail.solve();
-  cout << "</body></html>";
   return 0;
 }
