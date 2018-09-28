@@ -172,15 +172,15 @@ struct GeomBuilder {
 struct MaybeSet {
   set<Maybe> maybe;
   bool operator==(const MaybeSet &b) const {
-    return equal(maybe.begin(), maybe.end(), b.maybe.begin(), b.maybe.end());
+    return equal(begin(maybe), end(maybe), begin(b.maybe), end(b.maybe));
   }
   bool has_value(int v) const {
-    return maybe.end() != find_if(maybe.begin(), maybe.end(), [&](auto &m) {
+    return end(maybe) != find_if(begin(maybe), end(maybe), [&](auto &m) {
       return m.value == v;
     });
   }
   bool has_maybe(const Maybe &m) const {
-    return maybe.find(m) != maybe.end();
+    return maybe.find(m) != end(maybe);
   }
   bool empty() const {
     return maybe.empty();
@@ -208,8 +208,8 @@ struct MaybeSet {
   template<typename T>
   set<int> extract(T action) const {
     set<int> seq;
-    transform(maybe.begin(), maybe.end(),
-        inserter(seq, seq.begin()), action);
+    transform(begin(maybe), end(maybe),
+        inserter(seq, begin(seq)), action);
     return seq;
   }
   template<typename T>
@@ -354,25 +354,25 @@ struct State {
   }
   template<typename T>
   bool has_value(const T &line, int value) const {
-    return line.end() != find_if(line.begin(), line.end(), [&](int i) {
+    return end(line) != find_if(begin(line), end(line), [&](int i) {
       return pos(i).value == value;
     });
   }
   template<typename T>
   int count_maybe(const T& line, const Maybe &m) const {
-    return count_if(line.begin(), line.end(), [&](int i) {
+    return count_if(begin(line), end(line), [&](int i) {
       return pos(i).maybe.has_maybe(m);
     });
   }
   template<typename T>
   auto first_non_empty(const T& order) const {
-    return find_if(order.begin(), order.end(), [&](int i) {
+    return find_if(begin(order), end(order), [&](int i) {
       return !pos(i).empty();
     });
   }
   template<typename T>
   bool has_single_digit(const T& line, int digit) const {
-    return 1 == count_if(line.begin(), line.end(), [&](auto i) {
+    return 1 == count_if(begin(line), end(line), [&](auto i) {
       return pos(i).maybe.has_value(digit);
     });
   }
@@ -386,17 +386,17 @@ struct State {
   }
   auto trim(const Line& line) const {
     auto notempty = [&](auto i) { return !pos(i).empty(); };
-    auto first = find_if(line.begin(), line.end(), notempty);
+    auto first = find_if(begin(line), end(line), notempty);
     auto last = find_if(line.rbegin(), line.rend(), notempty).base();
     auto trimmed = vector<int>(first, last);
     return TrimmedLine{trimmed};
   }
   optional<Sequence> sequence(const TrimmedLine &line) const {
-    vector<int> sorted(line.begin(), line.end());
-    sort(sorted.begin(), sorted.end());
-    auto check = adjacent_find(sorted.begin(), sorted.end(),
+    vector<int> sorted(begin(line), end(line));
+    sort(begin(sorted), end(sorted));
+    auto check = adjacent_find(begin(sorted), end(sorted),
         [](const auto &a, const auto &b) { return b != a + 1; });
-    if (check == sorted.end()) {
+    if (check == end(sorted)) {
       return Sequence{sorted};
     }
     return {};
@@ -444,7 +444,7 @@ struct StatePrinter {
       for (int i = 0; i < state.geom.n; i++) {
         oss << "<td style=\"border-style: solid; border-color: black;";
         oss << border(state.geom, j, i);
-        if (changed.find(state.geom.line[j][i]) != changed.end()) {
+        if (changed.find(state.geom.line[j][i]) != end(changed)) {
           oss << "background-color: yellow;";
         }
         oss << "\"><div class=\"outercontent\">";
@@ -590,13 +590,13 @@ struct DuplicateGroup final : public Strategy {
     Filter filter{state};
     Maybe goal{digit, group};
     const Path &order = state.geom.forward;
-    auto it = find_if(order.begin(), order.end(), [&](int i) {
+    auto it = find_if(begin(order), end(order), [&](int i) {
       return state.pos(i).found() && state.pos(i).maybe.has_maybe(goal);
     });
-    if (it == order.end()) {
+    if (it == end(order)) {
       return {};
     }
-    int ri = distance(order.begin(), it);
+    int ri = distance(begin(order), it);
     for (int i = 0; i < state.n * state.n; i++) {
       if (i != ri) {
         filter.put(i, state.pos(i).filter_maybe([&](auto &m) {
@@ -654,7 +654,7 @@ struct LimitSequence final : public Strategy {
     }
     for (int i : line) {
       filter.put(i, state.pos(i).filter_maybe([&](auto &m) {
-        return find(avoid.begin(), avoid.end(), m) == avoid.end();
+        return find(begin(avoid), end(avoid), m) == end(avoid);
       }));
     }
     return filter.flush();
@@ -690,7 +690,7 @@ struct BoundedSequence final : public Strategy {
           continue;
         }
         if (state.pos(current).value == start && state.pos(i).value == end) {
-          if (done.find(make_pair(current, i)) != done.end()) {
+          if (done.find(make_pair(current, i)) != std::end(done)) {
             current = i;
             continue;
           }
@@ -716,7 +716,7 @@ struct BoundedSequence final : public Strategy {
     bool present = false;
     for (int i = a; i <= b; i++) {
       if (state.pos(i).maybe.has_value(middle)) {
-        if (find(line.begin(), line.end(), i) == line.end()) {
+        if (find(begin(line), std::end(line), i) == std::end(line)) {
           return false;
         }
         present = true;
@@ -798,9 +798,9 @@ struct OnlyGroup final : public Strategy {
     if (line_count != count) {
       return {};
     }
-    set<int> skipline(line.begin(), line.end());
+    set<int> skipline(begin(line), end(line));
     for (int i : state.geom.forward) {
-      if (skipline.find(i) == skipline.end()) {
+      if (skipline.find(i) == end(skipline)) {
         filter.put(i, state.pos(i).filter_maybe([&](const Maybe &m) {
           return !(m.value == digit && m.group == group);
         }));
@@ -833,20 +833,20 @@ struct ExactlyNValues final : public Strategy {
       return {};
     }
     set<int> valid;
-    copy_if(line.begin(), line.end(), inserter(valid, valid.begin()),
+    copy_if(begin(line), end(line), inserter(valid, begin(valid)),
         [&](int i){ return !state.pos(i).empty(); });
     set<Maybe> first = get_first(state, valid);
     map<int, set<Maybe>> allow;
-    for (auto i = valid.begin(); i != valid.end(); ++i) {
+    for (auto i = begin(valid); i != end(valid); ++i) {
       state.pos(*i).maybe.iterate([&](auto &m) {
-        if (first.find(m) == first.end()) {
+        if (first.find(m) == end(first)) {
           return;
         }
         auto m2 = m.next();
-        for (auto i2 = next(i); i2 != valid.end(); ++i2) {
+        for (auto i2 = next(i); i2 != end(valid); ++i2) {
           if (state.pos(*i2).maybe.has_maybe(m2)) {
             auto m3 = m2.next();
-            for (auto i3 = next(i2); i3 != valid.end(); ++i3) {
+            for (auto i3 = next(i2); i3 != end(valid); ++i3) {
               if (state.pos(*i3).maybe.has_maybe(m3)) {
                 allow[*i].insert(m);
                 allow[*i2].insert(m2);
@@ -938,7 +938,7 @@ struct SequenceImplication final : public Strategy {
   map<int, Cell> strategy(const State &state) override {
     Filter filter{state};
     auto it = next(state.first_non_empty(order));
-    for (; it != order.end(); ++it) {
+    for (; it != end(order); ++it) {
       if (state.pos(*it).found()) {
         continue;
       }
@@ -949,9 +949,9 @@ struct SequenceImplication final : public Strategy {
     return filter.flush();
   }
   bool search(const State &state, int start, const Maybe &m) {
-    auto it = find(reverse.begin(), reverse.end(), start);
+    auto it = find(begin(reverse), end(reverse), start);
     auto next = action(m);
-    for (; it != reverse.end(); ++it) {
+    for (; it != end(reverse); ++it) {
       auto &succ = state.pos(*it).maybe;
       auto &succ_value = state.pos(*it).value;
       if (succ.has_maybe(m) && succ_value) {
@@ -1296,7 +1296,7 @@ int main() {
   for (int i = 0; i < n; i++) {
     cin >> grid[i];
   }
-  NullPrinter printer;
+  SnailPrinter printer;
   Snail snail(n, grid, printer);
   snail.solve();
   return 0;
