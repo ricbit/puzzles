@@ -10,6 +10,7 @@
 #include <iterator>
 #include <utility>
 #include <memory>
+#include <type_traits>
 
 using namespace std;
 using namespace rel_ops;
@@ -62,7 +63,20 @@ struct Line : IntVector {
 struct Path : IntVector {
 };
 
-struct TrimmedLine : IntVector {
+template<typename T>
+struct TrimmedLine {
+  using category = typename iterator_traits<T>::iterator_category;
+  TrimmedLine(const T begin, const T end) : begin_(begin), end_(end) {
+    static_assert(is_base_of<forward_iterator_tag, category>::value);
+  }
+  T begin() const {
+    return begin_;
+  }
+  T end() const {
+    return end_;
+  }
+ private:
+  const T begin_, end_;
 };
 
 struct Sequence : IntVector {
@@ -386,10 +400,10 @@ struct State {
     auto notempty = [&](auto i) { return !pos(i).empty(); };
     auto first = find_if(begin(line), end(line), notempty);
     auto last = find_if(line.rbegin(), line.rend(), notempty).base();
-    auto trimmed = vector<int>(first, last);
-    return TrimmedLine{trimmed};
+    return TrimmedLine(first, last);
   }
-  optional<Sequence> sequence(const TrimmedLine &line) const {
+  template<typename T>
+  optional<Sequence> sequence(const TrimmedLine<T> &line) const {
     vector<int> sorted(begin(line), end(line));
     sort(begin(sorted), end(sorted));
     auto check = adjacent_find(begin(sorted), end(sorted),
@@ -1290,7 +1304,7 @@ int main() {
   for (int i = 0; i < n; i++) {
     cin >> grid[i];
   }
-  NullPrinter printer;
+  SnailPrinter printer;
   Snail snail(n, grid, printer);
   snail.solve();
   return 0;
