@@ -41,8 +41,25 @@ struct Coord {
   int y, x;
 };
 
-struct IntVector {
+template<typename T>
+struct PositionContainer {
+  template<typename Type, typename Action>
+  Type accumulate(Type initial, Action action) const {
+    return std::accumulate(convert()->begin(), convert()->end(), initial,
+        [action](Type x, const auto &y) {
+      return x + action(y);
+    });
+  }
+ private:
+  auto convert() const {
+    return static_cast<const T*>(this);
+  }
+};
+
+struct PositionVector : public PositionContainer<PositionVector> {
   const vector<int> line;
+  PositionVector(const vector<int> line) : line(line) {
+  }
   auto begin() const {
     return line.cbegin();
   }
@@ -57,29 +74,35 @@ struct IntVector {
   }
 };
 
-struct Line : IntVector {
+struct Line : PositionVector {
 };
 
-struct Path : IntVector {
+struct Path : PositionVector {
 };
 
 template<typename T>
 struct TrimmedLine {
   using category = typename iterator_traits<T>::iterator_category;
   TrimmedLine(const T begin, const T end) : begin_(begin), end_(end) {
-    static_assert(is_base_of<forward_iterator_tag, category>::value);
+    static_assert(is_base_of<bidirectional_iterator_tag, category>::value);
   }
-  T begin() const {
+  auto begin() const {
     return begin_;
   }
-  T end() const {
+  auto end() const {
     return end_;
+  }
+  auto rbegin() const {
+    return make_reverse_iterator(end_);
+  }
+  auto rend() const {
+    return make_reverse_iterator(begin_);
   }
  private:
   const T begin_, end_;
 };
 
-struct Sequence : IntVector {
+struct Sequence : PositionVector {
 };
 
 struct Geom {
@@ -798,12 +821,11 @@ struct OnlyGroup final : public Strategy {
     }
     Maybe m{digit, group};
     int line_count = state.count_maybe(line, m);
-    int count = 0;
-    for (int i : line) {
-      count += state.pos(i).maybe.count([&](const auto& m) {
+    int count = line.accumulate(0, [&](const auto &i) {
+      return state.pos(i).maybe.count([&](const auto& m) {
         return m.value == digit;
       });
-    }
+    });
     if (line_count != count) {
       return {};
     }
