@@ -81,7 +81,7 @@ struct Path : PositionVector {
 };
 
 template<typename T>
-struct TrimmedLine {
+struct TrimmedLine : public PositionContainer<TrimmedLine<T>> {
   using category = typename iterator_traits<T>::iterator_category;
   TrimmedLine(const T begin, const T end) : begin_(begin), end_(end) {
     static_assert(is_base_of<bidirectional_iterator_tag, category>::value);
@@ -422,7 +422,7 @@ struct State {
   auto trim(const Line& line) const {
     auto notempty = [&](auto i) { return !pos(i).empty(); };
     auto first = find_if(begin(line), end(line), notempty);
-    auto last = find_if(line.rbegin(), line.rend(), notempty).base();
+    auto last = find_if(rbegin(line), rend(line), notempty).base();
     return TrimmedLine(first, last);
   }
   template<typename T>
@@ -1135,7 +1135,11 @@ enum struct Status {
 template<typename SnailPrinter>
 struct Snail {
   Snail(int n, const vector<string>& grid, SnailPrinter printer)
-      : n(n), geom(GeomBuilder(n).build()), state(geom), printer(printer) {
+      : n(n), geom(GeomBuilder(n).build()), state(geom), printer(printer),
+        easy(build_easy(grid)), hard(build_hard()) {
+  }
+  const vector<unique_ptr<Strategy>> build_easy(const vector<string>& grid) {
+    vector<unique_ptr<Strategy>> easy;
     easy.push_back(make_unique<AddGivens>(grid));
     for (int d = 1; d <= 3; d++) {
       for (int j = 0; j < n; j++) {
@@ -1154,6 +1158,10 @@ struct Snail {
         easy.push_back(make_unique<DuplicateGroup>(d, g));
       }
     }
+    return easy;
+  }
+  const vector<unique_ptr<Strategy>> build_hard() {
+    vector<unique_ptr<Strategy>> hard;
     hard.push_back(make_unique<FixEndpoint>(
         geom.forward, Maybe{1, 1}, "first"));
     hard.push_back(make_unique<FixEndpoint>(
@@ -1214,6 +1222,7 @@ struct Snail {
       hard.push_back(make_unique<CompleteSequence>(geom.column[i],
           "Column", i));
     }
+    return hard;
   }
   void solve() {
     while (true) {
@@ -1259,7 +1268,7 @@ struct Snail {
   const Geom geom;
   State state;
   const SnailPrinter printer;
-  vector<unique_ptr<Strategy>> easy, hard;
+  const vector<unique_ptr<Strategy>> easy, hard;
 };
 
 struct SnailPrinter {
