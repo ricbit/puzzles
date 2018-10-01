@@ -58,7 +58,7 @@ struct PositionContainer {
 
 struct PositionVector : public PositionContainer<PositionVector> {
   const vector<int> line;
-  PositionVector(const vector<int> line) : line(line) {
+  PositionVector(vector<int> line) : line(move(line)) {
   }
   auto begin() const {
     return line.cbegin();
@@ -83,7 +83,7 @@ struct Path : PositionVector {
 template<typename T>
 struct TrimmedLine : public PositionContainer<TrimmedLine<T>> {
   using category = typename iterator_traits<T>::iterator_category;
-  TrimmedLine(const T begin, const T end) : begin_(begin), end_(end) {
+  TrimmedLine(T begin, T end) : begin_(begin), end_(end) {
     static_assert(is_base_of<bidirectional_iterator_tag, category>::value);
   }
   auto begin() const {
