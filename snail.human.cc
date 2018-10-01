@@ -436,9 +436,6 @@ struct State {
     }
     return {};
   }
-  bool is_sequence(const Line& line) const {
-    return sequence(trim(line)).has_value();
-  }
   bool has_before(int start, const Maybe &m) const {
     for (int i = 0; i < start; i++) {
       if (pos(i).maybe.has_maybe(m)) {
@@ -656,13 +653,14 @@ struct LimitSequence final : public Strategy {
     return oss.str();
   }
   map<int, Cell> strategy(const State &state) override {
-    if (!state.is_sequence(line)) {
+    auto seq = state.sequence(state.trim(line));
+    if (!seq.has_value()) {
       return {};
     }
     Filter filter{state};
     set<Maybe> maybes;
     int start = state.n * state.n;
-    for (int i : line) {
+    for (int i : *seq) {
       state.pos(i).maybe.iterate([&](auto &m) {
         maybes.insert(m);
       });
@@ -684,7 +682,7 @@ struct LimitSequence final : public Strategy {
         }
       }
     }
-    for (int i : line) {
+    for (int i : *seq) {
       filter.put(i, state.pos(i).filter_maybe([&](auto &m) {
         return find(begin(avoid), end(avoid), m) == end(avoid);
       }));
@@ -859,12 +857,13 @@ struct ExactlyNValues final : public Strategy {
     return oss.str();
   }
   map<int, Cell> strategy(const State &state) override {
-    Filter filter{state};
-    if (!state.is_sequence(line)) {
+    auto seq = state.sequence(state.trim(line));
+    if (!seq.has_value()) {
       return {};
     }
+    Filter filter{state};
     set<int> valid;
-    copy_if(begin(line), end(line), inserter(valid, begin(valid)),
+    copy_if(begin(*seq), end(*seq), inserter(valid, begin(valid)),
         [&](int i){ return !state.pos(i).empty(); });
     set<Maybe> first = get_first(state, valid);
     map<int, set<Maybe>> allow;
