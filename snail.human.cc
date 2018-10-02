@@ -960,17 +960,24 @@ struct XWing final : public Strategy {
     return oss.str();
   }
   map<int, Cell> strategy(const State &state) override {
-    set<int> inside;
+    set<int> inside, outside, diff;
     for (int i = 0; i < state.n; i++) {
       for (int j = 0; j < state.n; j++) {
         state.pos(getter(i, j)).maybe.iterate([&](const auto &m) {
-          if (m.value == digit && mask.has_line(i)) {
-            inside.insert(m.group);
+          if (m.value == digit) {
+            if (mask.has_line(i)) {
+              inside.insert(m.group);
+            } else {
+              outside.insert(m.group);
+            }
           }
         });
       }
     }
-    if (static_cast<int>(inside.size()) != mask.size()) {
+    set_difference(
+        begin(inside), end(inside), begin(outside), end(outside),
+        inserter(diff, begin(diff)));
+    if (static_cast<int>(diff.size()) != mask.size()) {
       return {};
     }
     Filter filter{state};
@@ -980,13 +987,13 @@ struct XWing final : public Strategy {
           filter.put(getter(i, j), state.pos(getter(i, j)).filter_maybe(
               [&](const auto &m) {
             return m.value != digit ||
-                   find(begin(inside), end(inside), m.group) == end(inside);
+                   find(begin(diff), end(diff), m.group) == end(diff);
           }));
         } else {
           filter.put(getter(i, j), state.pos(getter(i, j)).filter_maybe(
               [&](const auto &m) {
             return m.value != digit ||
-                   find(begin(inside), end(inside), m.group) != end(inside);
+                   find(begin(diff), end(diff), m.group) != end(diff);
           }));
         }
       }
@@ -1313,12 +1320,15 @@ struct Snail {
     }
     for (int d = 0; d < 3; d++) {
       for (uint16_t j = 0; j < (1 << n); j++) {
-        hard.push_back(newXWing(d, {j}, "Row", [&](int x, int y) {
-          return state.geom.row_getter(x, y);
-        }));
-        hard.push_back(newXWing(d, {j}, "Column", [&](int x, int y) {
-          return state.geom.column_getter(x, y);
-        }));
+        BitMask mask{j};
+        if (mask.size() <= 4) {
+          hard.push_back(newXWing(d, mask, "Row", [&](int x, int y) {
+            return state.geom.row_getter(x, y);
+          }));
+          hard.push_back(newXWing(d, mask, "Column", [&](int x, int y) {
+            return state.geom.column_getter(x, y);
+          }));
+        }
       }
     }
     return hard;
