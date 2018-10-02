@@ -122,6 +122,12 @@ struct Geom {
     }
     return line[nj][ni];
   }
+  int row_getter(int i, int j) const {
+    return row[i].line[j];
+  }
+  int column_getter(int i, int j) const {
+    return column[i].line[j];
+  }
   constexpr static int dx[4]{1, 0, -1, 0};
   constexpr static int dy[4]{0, 1, 0, -1};
 };
@@ -912,6 +918,89 @@ struct ExactlyNValues final : public Strategy {
   }
 };
 
+struct BitMask {
+  uint16_t mask;
+  bool has_line(int line) const {
+    return mask & (1 << line);
+  }
+  int size() const {
+    int ans = 0, m = mask;
+    while (m) {
+      if (m & 1) {
+        ans++;
+      }
+      m >>= 1;
+    }
+    return ans;
+  }
+};
+
+template<typename Getter>
+struct XWing final : public Strategy {
+  const int digit;
+  const BitMask mask;
+  const string line_name;
+  const Getter getter;
+  XWing(int d, BitMask mask, const string &line_name, Getter getter)
+      : digit(d), mask(mask), line_name(build_name(line_name, d, mask)),
+        getter(getter) {
+  }
+  string name() override {
+    return line_name;
+  }
+  const string build_name(const string &line_name,
+      int digit, BitMask mask) const {
+    ostringstream oss;
+    oss << "XWing for digit " << digit << " in " << line_name << " : ";
+    for (int i = 0; i < 20; i++) {
+      if (mask.has_line(i)) {
+        oss << i << " ";
+      }
+    }
+    return oss.str();
+  }
+  map<int, Cell> strategy(const State &state) override {
+    set<int> inside;
+    for (int i = 0; i < state.n; i++) {
+      for (int j = 0; j < state.n; j++) {
+        state.pos(getter(i, j)).maybe.iterate([&](const auto &m) {
+          if (m.value == digit && mask.has_line(i)) {
+            inside.insert(m.group);
+          }
+        });
+      }
+    }
+    if (static_cast<int>(inside.size()) != mask.size()) {
+      return {};
+    }
+    Filter filter{state};
+    for (int i = 0; i < state.n; i++) {
+      for (int j = 0; j < state.n; j++) {
+        if (!mask.has_line(i)) {
+          filter.put(getter(i, j), state.pos(getter(i, j)).filter_maybe(
+              [&](const auto &m) {
+            return m.value != digit ||
+                   find(begin(inside), end(inside), m.group) == end(inside);
+          }));
+        } else {
+          filter.put(getter(i, j), state.pos(getter(i, j)).filter_maybe(
+              [&](const auto &m) {
+            return m.value != digit ||
+                   find(begin(inside), end(inside), m.group) != end(inside);
+          }));
+        }
+      }
+    }
+    return filter.flush();
+  }
+};
+
+template<typename Getter>
+unique_ptr<Strategy> newXWing(
+  int d, BitMask mask, const string &line_name, Getter getter) {
+    return make_unique<XWing<Getter>>(d, mask, line_name, getter);
+}
+
 struct SingleLine final : public Strategy {
   int digit;
   const Line &line;
@@ -1135,9 +1224,10 @@ template<typename SnailPrinter>
 struct Snail {
   Snail(int n, const vector<string>& grid, SnailPrinter printer)
       : n(n), geom(GeomBuilder(n).build()), state(geom), printer(printer),
-        easy(build_easy(grid)), hard(build_hard()) {
+        easy(build_easy(n, geom, grid)), hard(build_hard()) {
   }
-  const vector<unique_ptr<Strategy>> build_easy(const vector<string>& grid) {
+  const vector<unique_ptr<Strategy>> build_easy(
+      int n, const Geom& geom, const vector<string>& grid) {
     vector<unique_ptr<Strategy>> easy;
     easy.push_back(make_unique<AddGivens>(grid));
     for (int d = 1; d <= 3; d++) {
@@ -1220,6 +1310,16 @@ struct Snail {
           "Row", i));
       hard.push_back(make_unique<CompleteSequence>(geom.column[i],
           "Column", i));
+    }
+    for (int d = 0; d < 3; d++) {
+      for (uint16_t j = 0; j < (1 << n); j++) {
+        hard.push_back(newXWing(d, {j}, "Row", [&](int x, int y) {
+          return state.geom.row_getter(x, y);
+        }));
+        hard.push_back(newXWing(d, {j}, "Column", [&](int x, int y) {
+          return state.geom.column_getter(x, y);
+        }));
+      }
     }
     return hard;
   }
