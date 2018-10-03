@@ -302,10 +302,10 @@ struct Cell {
       return m.value == new_value;
     }), new_value, head, tail};
   }
-  Cell set_head(const MaybeSet newhead) const {
+  Cell set_head(const MaybeSet &newhead) const {
     return Cell{maybe, value, newhead, tail};
   }
-  Cell set_tail(const MaybeSet newtail) const {
+  Cell set_tail(const MaybeSet &newtail) const {
     return Cell{maybe, value, head, newtail};
   }
   bool found() const {
@@ -925,12 +925,12 @@ struct ExactlyNValues final : public Strategy {
 struct BitMask {
   uint16_t mask;
   bool has_line(int line) const {
-    return mask & (1 << line);
+    return static_cast<bool>(mask & (1 << line));
   }
   int size() const {
     int ans = 0, m = mask;
-    while (m) {
-      if (m & 1) {
+    while (static_cast<bool>(m)) {
+      if (static_cast<bool>(m & 1)) {
         ans++;
       }
       m >>= 1;
