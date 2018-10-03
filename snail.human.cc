@@ -1002,6 +1002,7 @@ struct XWing final : public Strategy {
         }
       }
     }
+    skip = true;
     return filter.flush();
   }
 };
@@ -1279,10 +1280,14 @@ struct Snail {
     for (int d = 1; d <= 3; d++) {
       for (int g = 1; g <= n; g++) {
         for (int i = 0; i < n; i++) {
-          hard.push_back(make_unique<OnlyValue>(d, g, geom.row[i], "row", i));
-          hard.push_back(make_unique<OnlyValue>(d, g, geom.column[i], "column", i));
-          hard.push_back(make_unique<OnlyGroup>(d, g, geom.row[i], "Row", i));
-          hard.push_back(make_unique<OnlyGroup>(d, g, geom.column[i], "Column", i));
+          hard.push_back(make_unique<OnlyValue>(
+              d, g, geom.row[i], "row", i));
+          hard.push_back(make_unique<OnlyValue>(
+              d, g, geom.column[i], "column", i));
+          hard.push_back(make_unique<OnlyGroup>(
+              d, g, geom.row[i], "Row", i));
+          hard.push_back(make_unique<OnlyGroup>(
+              d, g, geom.column[i], "Column", i));
         }
       }
     }
@@ -1331,15 +1336,17 @@ struct Snail {
           "Column", i));
     }
     for (int d = 0; d < 3; d++) {
-      for (uint16_t j = 0; j < (1 << n); j++) {
-        BitMask mask{j};
-        if (mask.size() <= 4) {
-          hard.push_back(newXWing(d, mask, "Row", [&](int x, int y) {
-            return state.geom.row_getter(x, y);
-          }));
-          hard.push_back(newXWing(d, mask, "Column", [&](int x, int y) {
-            return state.geom.column_getter(x, y);
-          }));
+      for (int s = 1; s <= 7; s++) {
+        for (uint16_t j = 0; j < (1 << n); j++) {
+          BitMask mask{j};
+          if (mask.size() == s) {
+            hard.push_back(newXWing(d, mask, "Row", [&](int x, int y) {
+              return state.geom.row_getter(x, y);
+            }));
+            hard.push_back(newXWing(d, mask, "Column", [&](int x, int y) {
+              return state.geom.column_getter(x, y);
+            }));
+          }
         }
       }
     }
