@@ -251,9 +251,21 @@ struct MaybeSet {
   template<typename T>
   set<int> extract(T action) const {
     set<int> seq;
-    transform(begin(maybe), end(maybe),
+    std::transform(begin(maybe), end(maybe),
         inserter(seq, begin(seq)), action);
     return seq;
+  }
+  template<typename T>
+  MaybeSet transform(T action) const {
+    set<Maybe> seq;
+    std::transform(begin(maybe), end(maybe),
+        inserter(seq, begin(seq)), action);
+    return {seq};
+  }
+  MaybeSet valid_groups(int max_group) const {
+    return filter([max_group](const auto &m) {
+      return m.group >= 1 && m.group <= max_group;
+    });
   }
   template<typename T>
   void iterate(T action) const {
@@ -290,18 +302,10 @@ struct Cell {
       return m.value == new_value;
     }), new_value, head, tail};
   }
-  template<typename T>
-  Cell set_head(const MaybeSet& oldtail, T action) const {
-    MaybeSet newhead;
-    transform(begin(oldtail.maybe), end(oldtail.maybe),
-        inserter(newhead.maybe, begin(newhead.maybe)), action);
+  Cell set_head(const MaybeSet newhead) const {
     return Cell{maybe, value, newhead, tail};
   }
-  template<typename T>
-  Cell set_tail(const MaybeSet& oldhead, T action) const {
-    MaybeSet newtail;
-    transform(begin(oldhead.maybe), end(oldhead.maybe),
-        inserter(newtail.maybe, begin(newtail.maybe)), action);
+  Cell set_tail(const MaybeSet newtail) const {
     return Cell{maybe, value, head, newtail};
   }
   bool found() const {
@@ -1158,12 +1162,16 @@ struct CompleteSequence final : public Strategy {
     const auto &first = *seq->begin();
     const auto &last = *seq->rbegin();
     if (state.pos(last).tail.empty() && !state.pos(first).head.empty()) {
-      filter.put(last, state.pos(last).set_tail(state.pos(first).head,
-          [](const Maybe& m) { return m.next().next(); }));
+      filter.put(last, state.pos(last).set_tail(
+          state.pos(first).head.transform([&](const auto &m) {
+            return m.next().next();
+          })));
     }
     if (!state.pos(last).tail.empty() && state.pos(first).head.empty()) {
-      filter.put(first, state.pos(first).set_head(state.pos(last).tail,
-          [](const Maybe& m) { return m.prev().prev(); }));
+      filter.put(first, state.pos(first).set_head(
+          state.pos(last).tail.transform([&](const auto& m) {
+            return m.prev().prev();
+          })));
     }
     return filter.flush();
   }
@@ -1231,7 +1239,7 @@ template<typename SnailPrinter>
 struct Snail {
   Snail(int n, const vector<string>& grid, SnailPrinter printer)
       : n(n), geom(GeomBuilder(n).build()), state(geom), printer(printer),
-        easy(build_easy(n, geom, grid)), hard(build_hard()) {
+        easy(build_easy(n, geom, grid)), hard(build_hard(n)) {
   }
   const vector<unique_ptr<Strategy>> build_easy(
       int n, const Geom& geom, const vector<string>& grid) {
@@ -1256,7 +1264,7 @@ struct Snail {
     }
     return easy;
   }
-  const vector<unique_ptr<Strategy>> build_hard() {
+  const vector<unique_ptr<Strategy>> build_hard(int n) {
     vector<unique_ptr<Strategy>> hard;
     hard.push_back(make_unique<FixEndpoint>(
         geom.forward, Maybe{1, 1}, "first"));
@@ -1303,14 +1311,18 @@ struct Snail {
           "Column", i));
     }
     hard.push_back(newHeadTailPropagation("Tail", geom.forward,
-        [](const auto &m) { return m.tail; },
-        [](auto &m, auto c) { return m.set_head(
-            c, [](const Maybe& m) { return m.next(); });
+        [](const auto &cell) { return cell.tail; },
+        [n](const auto &cell, const auto &maybeset) {
+          return cell.set_head(maybeset.transform([](const Maybe& m) {
+            return m.next();
+          }).valid_groups(n));
         }));
     hard.push_back(newHeadTailPropagation("Head", geom.backward,
-        [](const auto &m) { return m.head; },
-        [](auto &m, auto c) { return m.set_tail(
-            c, [](const Maybe& m) { return m.prev(); });
+        [](const auto &cell) { return cell.head; },
+        [n](const auto &cell, const auto &maybeset) {
+          return cell.set_tail(maybeset.transform([](const Maybe& m) {
+            return m.prev();
+          }).valid_groups(n));
         }));
     for (int i = 0; i < n; i++) {
       hard.push_back(make_unique<CompleteSequence>(geom.row[i],
