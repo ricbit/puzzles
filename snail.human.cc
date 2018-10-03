@@ -1336,7 +1336,7 @@ struct Snail {
           "Column", i));
     }
     for (int d = 0; d < 3; d++) {
-      for (int s = 1; s <= 7; s++) {
+      for (int s = 1; s <= n - 1; s++) {
         for (uint16_t j = 0; j < (1 << n); j++) {
           BitMask mask{j};
           if (mask.size() == s) {
