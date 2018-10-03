@@ -937,6 +937,17 @@ struct BitMask {
     }
     return ans;
   }
+  template<typename Action>
+  static void iterate(int n, Action action) {
+    for (int s = 1; s <= n - 1; s++) {
+      for (uint16_t j = 0; j < (1 << n); j++) {
+        BitMask mask{j};
+        if (mask.size() == s) {
+          action(mask);
+        }
+      }
+    }
+  }
 };
 
 template<typename Getter>
@@ -1271,11 +1282,9 @@ struct Snail {
         geom.forward, Maybe{1, 1}, "first"));
     hard.push_back(make_unique<FixEndpoint>(
         geom.backward, Maybe{3, n}, "last"));
-    hard.push_back(newSequenceImplication(
-        geom.forward, geom.backward,
+    hard.push_back(newSequenceImplication(geom.forward, geom.backward,
         [](auto &m){ return m.prev(); }, "Forward"));
-    hard.push_back(newSequenceImplication(
-        geom.backward, geom.forward,
+    hard.push_back(newSequenceImplication(geom.backward, geom.forward,
         [](auto &m){ return m.next(); }, "Backward"));
     for (int d = 1; d <= 3; d++) {
       for (int g = 1; g <= n; g++) {
@@ -1299,12 +1308,10 @@ struct Snail {
       for (int e = 1; e <= 3; e++) {
         for (int m = geom.modinc(s); m != e; m = geom.modinc(m)) {
           for (int i = 0; i < n; i++) {
-            hard.push_back(
-                make_unique<BoundedSequence>(s, e, m, geom.row[i],
-                  "row", i));
-            hard.push_back(
-                make_unique<BoundedSequence>(s, e, m, geom.column[i],
-                  "column", i));
+            hard.push_back(make_unique<BoundedSequence>(
+                s, e, m, geom.row[i], "row", i));
+            hard.push_back(make_unique<BoundedSequence>(
+                s, e, m, geom.column[i], "column", i));
           }
         }
       }
@@ -1336,19 +1343,14 @@ struct Snail {
           "Column", i));
     }
     for (int d = 0; d < 3; d++) {
-      for (int s = 1; s <= n - 1; s++) {
-        for (uint16_t j = 0; j < (1 << n); j++) {
-          BitMask mask{j};
-          if (mask.size() == s) {
-            hard.push_back(newXWing(d, mask, "Row", [&](int x, int y) {
-              return state.geom.row_getter(x, y);
-            }));
-            hard.push_back(newXWing(d, mask, "Column", [&](int x, int y) {
-              return state.geom.column_getter(x, y);
-            }));
-          }
-        }
-      }
+      BitMask::iterate(n, [&](const BitMask &mask) {
+        hard.push_back(newXWing(d, mask, "Row", [&](int x, int y) {
+          return state.geom.row_getter(x, y);
+        }));
+        hard.push_back(newXWing(d, mask, "Column", [&](int x, int y) {
+          return state.geom.column_getter(x, y);
+        }));
+      });
     }
     return hard;
   }
