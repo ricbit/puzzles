@@ -50,6 +50,26 @@ struct PositionContainer {
       return x + action(y);
     });
   }
+  template<typename State>
+  set<Maybe> get_first(const State& state) const {
+    set<Maybe> valid;
+    const auto start = *min_element(convert()->begin(), convert()->end()) - 1; 
+    for (int i = start; i >= 0; i--) {
+      const auto &pos = state.pos(i);
+      if (pos.value) {
+        pos.maybe.iterate([&](auto &m) {
+          valid.insert(m.next());
+        });
+        return valid;
+      }
+      pos.maybe.iterate([&](auto &m) {
+        valid.insert(m);
+        valid.insert(m.next());
+      });
+    }
+    valid.insert(Maybe{1, 1});
+    return valid;
+  }
  private:
   auto convert() const {
     return static_cast<const T*>(this);
@@ -872,10 +892,11 @@ struct ExactlyNValues final : public Strategy {
       return {};
     }
     Filter filter{state};
-    set<int> valid;
-    copy_if(begin(*seq), end(*seq), inserter(valid, begin(valid)),
+    vector<int> valid_build;
+    copy_if(begin(*seq), end(*seq), back_inserter(valid_build),
         [&](int i){ return !state.pos(i).empty(); });
-    set<Maybe> first = get_first(state, valid);
+    PositionVector valid(valid_build);
+    set<Maybe> first = valid.get_first(state);
     map<int, set<Maybe>> allow;
     for (auto i = begin(valid); i != end(valid); ++i) {
       state.pos(*i).maybe.iterate([&](auto &m) {
@@ -902,23 +923,6 @@ struct ExactlyNValues final : public Strategy {
           state.pos(kv.first).with_maybe({kv.second}));
     }
     return filter.flush();
-  }
-  set<Maybe> get_first(const State &state, const set<int>& line) {
-    set<Maybe> valid;
-    for (int i = *min_element(begin(line), end(line)) - 1; i >= 0; i--) {
-      if (state.pos(i).value) {
-        state.pos(i).maybe.iterate([&](auto &m) {
-          valid.insert(m.next());
-        });
-        return valid;
-      }
-      state.pos(i).maybe.iterate([&](auto &m) {
-        valid.insert(m);
-        valid.insert(m.next());
-      });
-    }
-    valid.insert(Maybe{1, 1});
-    return valid;
   }
 };
 
@@ -1286,7 +1290,7 @@ struct Snail {
         [](auto &m){ return m.prev(); }, "Forward"));
     hard.push_back(newSequenceImplication(geom.backward, geom.forward,
         [](auto &m){ return m.next(); }, "Backward"));
-    for (int d = 1; d <= 3; d++) {
+    /*for (int d = 1; d <= 3; d++) {
       for (int g = 1; g <= n; g++) {
         for (int i = 0; i < n; i++) {
           hard.push_back(make_unique<OnlyValue>(
@@ -1315,13 +1319,13 @@ struct Snail {
           }
         }
       }
-    }
+    }*/
     for (int i = 0; i < n; i++) {
       hard.push_back(make_unique<ExactlyNValues>(3, geom.row[i],
           "Row", i));
       hard.push_back(make_unique<ExactlyNValues>(3, geom.column[i],
           "Column", i));
-    }
+    }/*
     hard.push_back(newHeadTailPropagation("Tail", geom.forward,
         [](const auto &cell) { return cell.tail; },
         [n](const auto &cell, const auto &maybeset) {
@@ -1351,7 +1355,7 @@ struct Snail {
           return state.geom.column_getter(x, y);
         }));
       });
-    }
+    }*/
     return hard;
   }
   void solve() {
