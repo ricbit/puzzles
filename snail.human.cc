@@ -10,6 +10,7 @@
 #include <iterator>
 #include <utility>
 #include <memory>
+#include <queue>
 #include <type_traits>
 
 using namespace std;
@@ -50,26 +51,6 @@ struct PositionContainer {
       return x + action(y);
     });
   }
-  template<typename State>
-  set<Maybe> get_first(const State& state) const {
-    set<Maybe> valid;
-    const auto start = *min_element(convert()->begin(), convert()->end()) - 1; 
-    for (int i = start; i >= 0; i--) {
-      const auto &pos = state.pos(i);
-      if (pos.value) {
-        pos.maybe.iterate([&](auto &m) {
-          valid.insert(m.next());
-        });
-        return valid;
-      }
-      pos.maybe.iterate([&](auto &m) {
-        valid.insert(m);
-        valid.insert(m.next());
-      });
-    }
-    valid.insert(Maybe{1, 1});
-    return valid;
-  }
  private:
   auto convert() const {
     return static_cast<const T*>(this);
@@ -91,6 +72,12 @@ struct PositionVector : public PositionContainer<PositionVector> {
   }
   auto rend() const {
     return line.crend();
+  }
+  template<typename Action>
+  PositionVector filter(Action action) {
+    vector<int> filtered;
+    copy_if(begin(), end(), back_inserter(filtered), action);
+    return PositionVector(filtered);
   }
 };
 
@@ -478,6 +465,25 @@ struct State {
     return 3 * n == count_if(begin(pos_), end(pos_), [](auto &cell) {
       return cell.value.has_value();
     });
+  }
+  template<typename Line>
+  set<Maybe> head_candidates(const Line& line) const {
+    set<Maybe> valid;
+    const auto start = *min_element(begin(line), end(line)) - 1; 
+    for (int i = start; i >= 0; i--) {
+      if (pos(i).value) {
+        pos(i).maybe.iterate([&](auto &m) {
+          valid.insert(m.next());
+        });
+        return valid;
+      }
+      pos(i).maybe.iterate([&](auto &m) {
+        valid.insert(m);
+        valid.insert(m.next());
+      });
+    }
+    valid.insert(Maybe{1, 1});
+    return valid;
   }
   const int n;
   vector<Cell> pos_;
@@ -892,17 +898,17 @@ struct ExactlyNValues final : public Strategy {
       return {};
     }
     Filter filter{state};
-    vector<int> valid_build;
-    copy_if(begin(*seq), end(*seq), back_inserter(valid_build),
+    PositionVector valid = seq->filter(
         [&](int i){ return !state.pos(i).empty(); });
-    PositionVector valid(valid_build);
-    set<Maybe> first = valid.get_first(state);
+    set<Maybe> first = state.head_candidates(valid);
     map<int, set<Maybe>> allow;
+    vector<pair<int, Maybe>> candidate;
     for (auto i = begin(valid); i != end(valid); ++i) {
       state.pos(*i).maybe.iterate([&](auto &m) {
         if (first.find(m) == end(first)) {
           return;
         }
+        //search(state, candidate, allow, i, end(valid), m, 2);
         auto m2 = m.next();
         for (auto i2 = next(i); i2 != end(valid); ++i2) {
           if (state.pos(*i2).maybe.has_maybe(m2)) {
@@ -923,6 +929,26 @@ struct ExactlyNValues final : public Strategy {
           state.pos(kv.first).with_maybe({kv.second}));
     }
     return filter.flush();
+  }
+  template<typename Queue, typename Iter, typename Map>
+  void search(const State& state, Queue candidate, Map allow, 
+      Iter start, Iter finish, Maybe m, int level) {
+    auto m2 = m.next();
+    candidate.push_back(make_pair(*start, m));
+    if (level > 0) {
+      for (auto i2 = next(start); i2 != finish; ++i2) {
+        if (state.pos(*i2).maybe.has_maybe(m2)) {
+          search(state, candidate, allow, i2, finish, m2, level - 1);
+        }
+      }
+    } else {
+      for (const auto &kv : candidate) {
+        cout << kv.first << " ";
+        allow[kv.first].insert(kv.second);
+      }
+      cout << " : ";
+    }
+    candidate.pop_back();
   }
 };
 
