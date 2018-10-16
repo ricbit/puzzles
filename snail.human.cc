@@ -87,6 +87,9 @@ struct Line : PositionVector {
 struct Path : PositionVector {
 };
 
+struct Sequence : PositionVector {
+};
+
 template<typename T>
 struct TrimmedLine : public PositionContainer<TrimmedLine<T>> {
   using category = typename iterator_traits<T>::iterator_category;
@@ -109,7 +112,16 @@ struct TrimmedLine : public PositionContainer<TrimmedLine<T>> {
   const T begin_, end_;
 };
 
-struct Sequence : PositionVector {
+template<typename T>
+struct SpaceTrimmedLine : TrimmedLine<T> {
+  SpaceTrimmedLine(T begin, T end) : TrimmedLine<T>(begin, end) {
+  }
+};
+
+template<typename T>
+struct SpaceValidTrimmedLine : TrimmedLine<T> {
+  SpaceValidTrimmedLine(T begin, T end) : TrimmedLine<T>(begin, end) {
+  }
 };
 
 struct Geom {
@@ -436,11 +448,16 @@ struct State {
       }
     }
   }
-  auto trim(const Line& line) const {
-    auto notempty = [&](auto i) { return !pos(i).empty(); };
-    auto first = find_if(begin(line), end(line), notempty);
-    auto last = find_if(rbegin(line), rend(line), notempty).base();
+  template<typename Filter>
+  auto trim(const Line& line, Filter filter) const {
+    auto first = find_if(begin(line), end(line), filter);
+    auto last = find_if(rbegin(line), rend(line), filter).base();
     return TrimmedLine(first, last);
+  }
+  auto space_trim(const Line& line) const {
+    auto notempty = [&](auto i) { return !pos(i).empty(); };
+    auto trimmed = trim(line, notempty);
+    return SpaceTrimmedLine(trimmed.begin(), trimmed.end());
   }
   template<typename T>
   optional<Sequence> sequence(const TrimmedLine<T> &line) const {
@@ -689,7 +706,7 @@ struct LimitSequence final : public Strategy {
     return oss.str();
   }
   map<int, Cell> strategy(const State &state) override {
-    auto seq = state.sequence(state.trim(line));
+    auto seq = state.sequence(state.space_trim(line));
     if (!seq.has_value()) {
       return {};
     }
@@ -893,7 +910,7 @@ struct ExactlyNValues final : public Strategy {
     return oss.str();
   }
   map<int, Cell> strategy(const State &state) override {
-    auto seq = state.sequence(state.trim(line));
+    auto seq = state.sequence(state.space_trim(line));
     if (!seq.has_value()) {
       return {};
     }
@@ -929,10 +946,8 @@ struct ExactlyNValues final : public Strategy {
       }
     } else {
       for (const auto &kv : candidate) {
-        cout << kv.first << " ";
         allow[kv.first].insert(kv.second);
       }
-      cout << " : ";
     }
     candidate.pop_back();
   }
@@ -1182,7 +1197,7 @@ struct CompleteSequence final : public Strategy {
     return oss.str();
   }
   map<int, Cell> strategy(const State &state) override {
-    auto seq = state.sequence(state.trim(line));
+    auto seq = state.sequence(state.space_trim(line));
     if (!seq.has_value()) {
       return {};
     }
