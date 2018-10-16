@@ -905,10 +905,9 @@ struct ExactlyNValues final : public Strategy {
     vector<pair<int, Maybe>> candidate;
     for (auto i = begin(valid); i != end(valid); ++i) {
       state.pos(*i).maybe.iterate([&](auto &m) {
-        if (first.find(m) == end(first)) {
-          return;
+        if (first.find(m) != end(first)) {
+          search(state, candidate, allow, i, end(valid), m, 2);
         }
-        search(state, candidate, allow, i, end(valid), m, 2);
       });
     }
     for (auto kv : allow) {
@@ -1303,7 +1302,7 @@ struct Snail {
         [](auto &m){ return m.prev(); }, "Forward"));
     hard.push_back(newSequenceImplication(geom.backward, geom.forward,
         [](auto &m){ return m.next(); }, "Backward"));
-    /*for (int d = 1; d <= 3; d++) {
+    for (int d = 1; d <= 3; d++) {
       for (int g = 1; g <= n; g++) {
         for (int i = 0; i < n; i++) {
           hard.push_back(make_unique<OnlyValue>(
@@ -1332,13 +1331,13 @@ struct Snail {
           }
         }
       }
-    }*/
+    }
     for (int i = 0; i < n; i++) {
       hard.push_back(make_unique<ExactlyNValues>(3, geom.row[i],
           "Row", i));
       hard.push_back(make_unique<ExactlyNValues>(3, geom.column[i],
           "Column", i));
-    }/*
+    }
     hard.push_back(newHeadTailPropagation("Tail", geom.forward,
         [](const auto &cell) { return cell.tail; },
         [n](const auto &cell, const auto &maybeset) {
@@ -1368,7 +1367,7 @@ struct Snail {
           return state.geom.column_getter(x, y);
         }));
       });
-    }*/
+    }
     return hard;
   }
   void solve() {
