@@ -908,20 +908,7 @@ struct ExactlyNValues final : public Strategy {
         if (first.find(m) == end(first)) {
           return;
         }
-        //search(state, candidate, allow, i, end(valid), m, 2);
-        auto m2 = m.next();
-        for (auto i2 = next(i); i2 != end(valid); ++i2) {
-          if (state.pos(*i2).maybe.has_maybe(m2)) {
-            auto m3 = m2.next();
-            for (auto i3 = next(i2); i3 != end(valid); ++i3) {
-              if (state.pos(*i3).maybe.has_maybe(m3)) {
-                allow[*i].insert(m);
-                allow[*i2].insert(m2);
-                allow[*i3].insert(m3);
-              }
-            }
-          }
-        }
+        search(state, candidate, allow, i, end(valid), m, 2);
       });
     }
     for (auto kv : allow) {
@@ -931,7 +918,7 @@ struct ExactlyNValues final : public Strategy {
     return filter.flush();
   }
   template<typename Queue, typename Iter, typename Map>
-  void search(const State& state, Queue candidate, Map allow, 
+  void search(const State& state, Queue &candidate, Map &allow, 
       Iter start, Iter finish, Maybe m, int level) {
     auto m2 = m.next();
     candidate.push_back(make_pair(*start, m));
