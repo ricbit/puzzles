@@ -417,6 +417,12 @@ struct State {
     return pos_[geom.line[j][i]];
   }
   template<typename T>
+  int count_valid(const T& line) const {
+    return count_if(begin(line), end(line), [&](auto i) {
+      return pos(i).value.has_value();
+    });
+  }
+  template<typename T>
   bool has_value(const T &line, int value) const {
     return end(line) != find_if(begin(line), end(line), [&](int i) {
       return pos(i).value == value;
@@ -458,6 +464,13 @@ struct State {
     auto notempty = [&](auto i) { return !pos(i).empty(); };
     auto trimmed = trim(line, notempty);
     return SpaceTrimmedLine(trimmed.begin(), trimmed.end());
+  }
+  auto space_valid_trim(const Line& line) const {
+    auto notempty = [&](auto i) {
+      return !pos(i).empty() && !pos(i).found(); 
+    };
+    auto trimmed = trim(line, notempty);
+    return SpaceValidTrimmedLine(trimmed.begin(), trimmed.end());
   }
   template<typename T>
   optional<Sequence> sequence(const TrimmedLine<T> &line) const {
@@ -910,8 +923,17 @@ struct ExactlyNValues final : public Strategy {
     return oss.str();
   }
   map<int, Cell> strategy(const State &state) override {
-    auto seq = state.sequence(state.space_trim(line));
+    int size = 3 - state.count_valid(line);
+    if (size <= 1) {
+      return {};
+    }
+    auto seq = state.sequence(state.space_valid_trim(line));
     if (!seq.has_value()) {
+      return {};
+    }
+    if (any_of(begin(*seq), end(*seq), [&](auto i) {
+      return state.pos(i).value.has_value();
+    })) {
       return {};
     }
     Filter filter{state};
@@ -919,11 +941,14 @@ struct ExactlyNValues final : public Strategy {
         [&](int i){ return !state.pos(i).empty(); });
     set<Maybe> first = state.head_candidates(valid);
     map<int, set<Maybe>> allow;
+    for (auto i : valid) {
+      allow[i] = set<Maybe>{};
+    }
     vector<pair<int, Maybe>> candidate;
     for (auto i = begin(valid); i != end(valid); ++i) {
       state.pos(*i).maybe.iterate([&](auto &m) {
         if (first.find(m) != end(first)) {
-          search(state, candidate, allow, i, end(valid), m, 2);
+          search(state, candidate, allow, i, end(valid), m, size - 1);
         }
       });
     }
@@ -1264,6 +1289,9 @@ struct FixEndpoint final : public Strategy {
   map<int, Cell> strategy(const State &state) override {
     Filter filter{state};
     auto it = state.first_non_empty(order);
+    if (it == end(order)) {
+      return {};
+    }
     while (!state.pos(*it).maybe.has_value(endpoint.value)) {
       filter.put(*it++, Cell());
     }
