@@ -906,6 +906,55 @@ struct OnlyGroup final : public Strategy {
   }
 };
 
+struct ExactlyNSearch {
+  const State &state;
+  const PositionVector &valid;
+  const int nfound;
+  const set<Maybe> &first;
+  map<int, set<Maybe>> allow;
+  vector<pair<int, Maybe>> candidate;
+  ExactlyNSearch(const State& state, const PositionVector &valid,
+      const int nfound, const set<Maybe> &first)
+      : state(state), valid(valid), nfound(nfound), first(first) {
+    for (auto i : valid) {
+      allow[i] = set<Maybe>{};
+    }
+  }
+  map<int, Cell> search() {
+    Filter filter{state};
+    for (auto i = begin(valid); i != end(valid); ++i) {
+      state.pos(*i).maybe.iterate([&](auto &m) {
+        if (first.find(m) != end(first)) {
+          search(i, end(valid), m, 3 - nfound - 1);
+        }
+      });
+    }
+    for (auto kv : allow) {
+      filter.put(kv.first,
+          state.pos(kv.first).with_maybe({kv.second}));
+    }
+    return filter.flush();
+  }
+  template<typename Iter>
+  void search(Iter start, Iter finish, Maybe m, int level) {
+    auto m2 = m.next();
+    candidate.push_back(make_pair(*start, m));
+    if (level > 0) {
+      for (auto i2 = next(start); i2 != finish; ++i2) {
+        if (state.pos(*i2).maybe.has_maybe(m2)) {
+          search(i2, finish, m2, level - 1);
+        }
+      }
+    } else {
+      for (const auto &kv : candidate) {
+        allow[kv.first].insert(kv.second);
+      }
+    }
+    candidate.pop_back();
+  }
+
+};
+
 struct ExactlyNValues final : public Strategy {
   int n;
   const Line &line;
@@ -923,58 +972,23 @@ struct ExactlyNValues final : public Strategy {
     return oss.str();
   }
   map<int, Cell> strategy(const State &state) override {
-    int size = 3 - state.count_valid(line);
-    if (size <= 1) {
+    int nfound = state.count_valid(line);
+    if (nfound >= 2) {
       return {};
     }
     auto seq = state.sequence(state.space_valid_trim(line));
     if (!seq.has_value()) {
       return {};
     }
-    if (any_of(begin(*seq), end(*seq), [&](auto i) {
-      return state.pos(i).value.has_value();
-    })) {
+    if (any_of(begin(*seq), end(*seq),
+        [&](auto i) { return state.pos(i).value.has_value(); })) {
       return {};
     }
-    Filter filter{state};
     PositionVector valid = seq->filter(
         [&](int i){ return !state.pos(i).empty(); });
     set<Maybe> first = state.head_candidates(valid);
-    map<int, set<Maybe>> allow;
-    for (auto i : valid) {
-      allow[i] = set<Maybe>{};
-    }
-    vector<pair<int, Maybe>> candidate;
-    for (auto i = begin(valid); i != end(valid); ++i) {
-      state.pos(*i).maybe.iterate([&](auto &m) {
-        if (first.find(m) != end(first)) {
-          search(state, candidate, allow, i, end(valid), m, size - 1);
-        }
-      });
-    }
-    for (auto kv : allow) {
-      filter.put(kv.first,
-          state.pos(kv.first).with_maybe({kv.second}));
-    }
-    return filter.flush();
-  }
-  template<typename Queue, typename Iter, typename Map>
-  void search(const State& state, Queue &candidate, Map &allow, 
-      Iter start, Iter finish, Maybe m, int level) {
-    auto m2 = m.next();
-    candidate.push_back(make_pair(*start, m));
-    if (level > 0) {
-      for (auto i2 = next(start); i2 != finish; ++i2) {
-        if (state.pos(*i2).maybe.has_maybe(m2)) {
-          search(state, candidate, allow, i2, finish, m2, level - 1);
-        }
-      }
-    } else {
-      for (const auto &kv : candidate) {
-        allow[kv.first].insert(kv.second);
-      }
-    }
-    candidate.pop_back();
+    ExactlyNSearch search(state, valid, nfound, first);
+    return search.search();
   }
 };
 
