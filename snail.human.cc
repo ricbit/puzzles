@@ -467,7 +467,7 @@ struct State {
   }
   auto space_valid_trim(const Line& line) const {
     auto notempty = [&](auto i) {
-      return !pos(i).empty() && !pos(i).found(); 
+      return !pos(i).empty() && !pos(i).value.has_value();
     };
     auto trimmed = trim(line, notempty);
     return SpaceValidTrimmedLine(trimmed.begin(), trimmed.end());
@@ -911,11 +911,13 @@ struct ExactlyNSearch {
   const PositionVector &valid;
   const int nfound;
   const set<Maybe> &first;
+  const int valid_inside;
   map<int, set<Maybe>> allow;
   vector<pair<int, Maybe>> candidate;
   ExactlyNSearch(const State& state, const PositionVector &valid,
       const int nfound, const set<Maybe> &first)
-      : state(state), valid(valid), nfound(nfound), first(first) {
+      : state(state), valid(valid), nfound(nfound), first(first),
+        valid_inside(state.count_valid(valid)) {
     for (auto i : valid) {
       allow[i] = set<Maybe>{};
     }
@@ -925,7 +927,7 @@ struct ExactlyNSearch {
     for (auto i = begin(valid); i != end(valid); ++i) {
       state.pos(*i).maybe.iterate([&](auto &m) {
         if (first.find(m) != end(first)) {
-          search(i, end(valid), m, 3 - nfound - 1);
+          search(i, end(valid), m, 3 - (nfound - valid_inside) - 1);
         }
       });
     }
@@ -946,13 +948,20 @@ struct ExactlyNSearch {
         }
       }
     } else {
-      for (const auto &kv : candidate) {
-        allow[kv.first].insert(kv.second);
+      if (has_valid_inside()) {
+        for (const auto &kv : candidate) {
+          allow[kv.first].insert(kv.second);
+        }
       }
     }
     candidate.pop_back();
   }
-
+  bool has_valid_inside() {
+    return valid_inside == count_if(begin(candidate), end(candidate),
+        [&](const auto &kv) {
+      return state.pos(kv.first).value.has_value();
+    });
+  }
 };
 
 struct ExactlyNValues final : public Strategy {
@@ -973,15 +982,12 @@ struct ExactlyNValues final : public Strategy {
   }
   map<int, Cell> strategy(const State &state) override {
     int nfound = state.count_valid(line);
-    if (nfound >= 2) {
+    if (nfound >= 3) {
+      skip = true;
       return {};
     }
     auto seq = state.sequence(state.space_valid_trim(line));
     if (!seq.has_value()) {
-      return {};
-    }
-    if (any_of(begin(*seq), end(*seq),
-        [&](auto i) { return state.pos(i).value.has_value(); })) {
       return {};
     }
     PositionVector valid = seq->filter(
