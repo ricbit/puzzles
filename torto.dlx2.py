@@ -1,6 +1,5 @@
-from collections import Counter
-import itertools
-import random
+# Takes a list of words and build a torto model to be used with Knuth's dlx2 solver.
+# Usage: python torto.dlx2.py < words.txt > model.dlx
 
 def iter_torto():
   for j in xrange(6):
@@ -72,10 +71,10 @@ def remove_symmetry(seq):
     seen.add(q)
     seen.add(flipxp(q))
     seen.add(flipyp(q))
-    seen.add(flipxp(q))
+    seen.add(flipyp(flipxp(q)))
 
-def get_symmetry(n, i):
-  if n == 0 and i == 0:
+def get_symmetry(n, i, size):
+  if n == 0 and i == size / 2:
     return remove_symmetry
   else:
     return id_generator
@@ -83,9 +82,9 @@ def get_symmetry(n, i):
 def collect_word(n, word):
   for i in xrange(len(word) - 1):
     a, b = w = word[i: i + 2]
-    transform = get_symmetry(n, i)
+    transform = get_symmetry(n, i, len(word))
     for name, pa, pb in transform(flip(iter_torto())):
-      yield "W%d_%d %s %s p%s:%s p%s:%s %s pw%d_%s:%s pw%d_%s:%s" % (
+      yield "W%d_%d %s %s p%s:%s p%s:%s %spw%d_%s:%s pw%d_%s:%s" % (
         n, i, item_letter(n, i, pa), item_letter(n, i + 1, pb),
         pos(pa), a, pos(pb), b, diag(n, name, pa, pb),
         n, encode_pos(pa), encode(i), n, encode_pos(pb), encode(i + 1))
