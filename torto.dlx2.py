@@ -22,7 +22,7 @@ def pos(p):
   return "%d%d" % p
 
 def encode(x):
-  limit = 10 + ord('z') - ord('a')
+  limit = 11 + ord('z') - ord('a')
   if x < 10:
     return str(x)
   elif x < limit:
