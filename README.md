@@ -7,9 +7,10 @@ For extra motivation of why should anyone spend time programming puzzles, I reco
 Almost all puzzles here can be played online on the wonderful site [janko](https://www.janko.at/Raetsel/index.htm).
 
 The methods used to solve the puzzles so far:
-* **Exact cover**: an implementation of the Dancing Links algorithm.
+* **Exact cover**: an implementation using the Dancing Links algorithm.
 * **Constraint programming**: A small library I wrote, allowing for arbitrary constraints, and falling back to backtracking when no information can be extracted by manipulating the constraints.
 * **Mixed integer programming**: Programming MIP from scratch is hard, so instead I wrote an easy-to-use C++ frontend to the external library SCIP.
+* **Human-based reasoning**: An expert system encoding rules as a human would solve it.
 
 ## Akari (Light Up)
 
@@ -100,4 +101,14 @@ Rules:
 * Every cell must have a branch.
 
 ![Branches puzzle unsolved](images/branches.unsolved.png) ![Branches puzzle solved](images/branches.solved.png)
+
+## Snail
+
+Rules:
+* Place numbers from 1 to n on the board.
+* The first number in the snail must be 1, the last must be n.
+* The number along the snail must follow the sequence 1 to n, repeating as needed.
+* Each row and each column must have exactly one number from 1 to n.
+
+![Snail puzzle unsolved](images/snail.unsolved.png) ![Snail puzzle solved](images/snail.solved.png)
 
