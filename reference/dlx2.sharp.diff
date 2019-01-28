@@ -1,0 +1,38 @@
+77c77
+< @d max_nodes 10000000 /* at most this many nonzero elements in the matrix */
+---
+> @d max_nodes 100000000 /* at most this many nonzero elements in the matrix */
+91c91
+< main (int argc, char *argv[]) {
+---
+> int main (int argc, char *argv[]) {
+307a308
+> int sharp_items = 0;
+406a408
+>   if (buf[p]=='#') sharp_items++;
+428a431
+> fprintf(stderr,"Total sharps %d\n", sharp_items);
+568a572,574
+> if (nd[best_itm].len == 0) {
+>   goto skip_zero;
+> }
+577c583
+< if (o,cl[root].next==root) @<Visit a solution and |goto recover|@>;
+---
+> if (o,cl[root].next==root || !sharp_items) @<Visit a solution and |goto recover|@>;
+587a594
+> skip_zero:
+623a631
+>   if (cl[c].name[0]=='#') sharp_items--;
+673a682
+>   if (cl[c].name[0]=='#') sharp_items++;
+775,776c784,789
+<   if (o,nd[k].len<=t) {
+<     if (nd[k].len<t) best_itm=k,t=nd[k].len,p=1;
+---
+>   int current_len = nd[k].len;
+>   if (current_len > 1 && cl[k].name[0] != '#') {
+>     current_len += options;
+>   }
+>   if (o,current_len<=t) {
+>     if (current_len<t) best_itm=k,t=current_len,p=1;
