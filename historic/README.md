@@ -8,7 +8,7 @@ The original author of Torto is currently unknown. A search on the brazilian tra
 
 ## Logomania
 
-While we don't know the author of Torto yet, we have some information on its probable origin. Henrique Ramos, a puzzle author active at the time, reported that Torto was inspired by "Logomania", a puzzle published on the newspaper "O Globo". We have a scan of [the very first Logomania](logomania.pdf), published on 1974-08-25. Logomania rules are somewhat different from Torto: it doesn't have a grid, and all words are required to use the letter in the big boldface.
+While we don't know the author of Torto yet, we have some information on its probable origin. Henrique Ramos, a puzzle author active at the time, reported that Torto was inspired by "Logomania", a puzzle created by Luiz Carlos Bravo and published on the newspaper "O Globo". We have a scan of [the very first Logomania](logomania.pdf), published on 1974-08-25. Logomania rules are somewhat different from Torto: it doesn't have a grid, and all words are required to use the letter in the big boldface.
 
 ## Word search
 
