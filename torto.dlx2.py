@@ -4,10 +4,11 @@
 #   python torto.dlx2.py < words.txt > model.dlx
 #
 # If you want to use "Partial Cover":
-#   SHARP=1 python torto.dlx2.py < words.txt > model.dlx
+#   python torto.dlx2.py --sharp < words.txt > model.dlx
 
-import os
 import sys
+import itertools
+import argparse
 from collections import Counter
 
 def iter_torto():
@@ -88,8 +89,8 @@ def get_symmetry(n, i, size):
   else:
     return id_generator
 
-def collect_word(n, word):
-  sharp = "#" if os.getenv("SHARP") is not None else ""
+def collect_word(n, word, sharp):
+  sharp = "#" if sharp else ""
   for i in xrange(len(word) - 1):
     a, b = w = word[i: i + 2]
     transform = get_symmetry(n, i, len(word))
@@ -135,6 +136,11 @@ def collect_bigrams(words):
           bigram, count, pos(edge[1]), bigram[0], pos(edge[2]), bigram[1],
           bigram, count, encode_pos(edge[1]), bigram, count, encode_pos(edge[2]))
 
+def collect_empty():
+  for j, i in itertools.product(range(6), range(3)):
+    yield "P%d%d" % (j, i)
+    yield "P%d%d p%s:-" % (j, i, pos((j, i)))
+
 def extract_primary(option):
   for item in option.split():
     if ":" not in item and (item[0].isupper() or item[0] == "#"):
@@ -145,22 +151,29 @@ def extract_secondary(option):
     if ":" in item or item[0].islower():
       yield item.split(":")[0]
 
-nwords = int(raw_input())
-words = [raw_input().strip() for _ in xrange(nwords)]
-words.sort(key=lambda w: len(w), reverse=True)
-options = []
-for n, word in enumerate(words):
-  options.extend(collect_word(n, word))
-if os.getenv("SHARP") is not None:
-  options.extend(collect_letters(words))
-  options.extend(collect_bigrams(words))
-primary = set()
-secondary = set()
-for option in options:
-  for item in extract_primary(option):
-    primary.add(item)
-  for item in extract_secondary(option):
-    secondary.add(item)
-print "%s | %s" % (" ".join(primary), " ".join(secondary))
-for option in options:
-  print option
+def main():
+  parser = argparse.ArgumentParser(
+      description="Generate a torto dlx file from a list of words")
+  parser.add_argument("-s", "--sharp", action="store_true", help="Use the sharp heuristic")
+  args = parser.parse_args()
+  nwords = int(raw_input())
+  words = [raw_input().strip() for _ in xrange(nwords)]
+  words.sort(key=lambda w: len(w), reverse=True)
+  options = []
+  for n, word in enumerate(words):
+    options.extend(collect_word(n, word, args.sharp))
+  if args.sharp:
+    options.extend(collect_letters(words))
+    options.extend(collect_bigrams(words))
+  primary = set()
+  secondary = set()
+  for option in options:
+    for item in extract_primary(option):
+      primary.add(item)
+    for item in extract_secondary(option):
+      secondary.add(item)
+  print "%s | %s" % (" ".join(primary), " ".join(secondary))
+  for option in options:
+    print option
+
+main()
