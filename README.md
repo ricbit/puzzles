@@ -8,6 +8,7 @@ Almost all puzzles here can be played online on the wonderful site [janko](https
 
 The methods used to solve the puzzles so far:
 * **Exact cover**: an implementation using the Dancing Links algorithm.
+* **Color-controlled covering**: an extension of Exact Cover where items can be assigned colors.
 * **Constraint programming**: A small library I wrote, allowing for arbitrary constraints, and falling back to backtracking when no information can be extracted by manipulating the constraints.
 * **Mixed integer programming**: Programming MIP from scratch is hard, so instead I wrote an easy-to-use C++ frontend to the external library SCIP.
 * **Human-based reasoning**: An expert system encoding rules as a human would solve it.
@@ -111,4 +112,11 @@ Rules:
 * Each row and each column must have exactly one number from 1 to n.
 
 ![Snail puzzle unsolved](images/snail.unsolved.png) ![Snail puzzle solved](images/snail.solved.png)
+
+## Torto (Reversed)
+
+Rules:
+* Place words in a 6x3 grid of letters.
+* The words must appear in the grid as a noncrossing chess king path.
+
 
