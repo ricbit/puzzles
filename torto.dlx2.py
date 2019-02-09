@@ -16,6 +16,46 @@ import itertools
 import argparse
 from collections import Counter
 
+class IterTorto(object):
+  def ngram_positions(self, n):
+    self.diag = []
+    for j in range(6):
+      for i in range(3):
+        self.ngram = [(j, i)]
+        for ngram in self.iter(n - 1, j, i):
+          yield ngram
+
+  def iter_neigh(self, j, i):
+    for dj, di in itertools.product(range(-1, 2), repeat=2):
+      if dj == di == 0:
+        continue
+      nj, ni = dj + j, di + i
+      if 0 <= ni < 3 and 0 <= nj < 6:
+        yield (nj, ni)
+
+  def iter(self, n, j, i):
+    if n == 0:
+      yield self.ngram
+      return
+    for nj, ni in self.iter_neigh(j, i):
+      if (nj, ni) in self.ngram:
+        continue
+      has_diag = nj != j and ni != i
+      if has_diag:
+        bj = min(j, nj)
+        bi = min(i, ni)
+        if (bj, bi) in self.diag:
+          continue
+        else:
+          self.diag.append((bj, bi))
+      self.ngram.append((nj, ni))
+      for ngram in self.iter(n - 1, nj, ni):
+        yield ngram
+      self.ngram.pop()
+      if has_diag:
+        self.diag.pop()
+
+
 def iter_torto():
   for j in range(6):
     for i in range(2):
@@ -33,7 +73,7 @@ def flip(edges):
     yield (name, a, b)
     yield (name, b, a)
 
-def pos(p):
+def readable_pos(p):
   return "%d%d" % p
 
 def encode(x):
@@ -51,8 +91,8 @@ def encode_pos(pos):
 def item_letter(n, i, pos):
   return "c%d_%d:%s" % (n, i, encode_pos(pos))
 
-def diag(n, name, pa, pb):
-  if name[0] not in "ud":
+def diag(n, pa, pb):
+  if pa[0] == pb[0] or pa[1] == pb[1]:
     return ""
   mj = min(pa[0], pb[0])
   mi = min(pa[1], pb[1])
@@ -68,18 +108,15 @@ def flipy(p):
   return (5 - p[0], p[1])
 
 def flipxp(p):
-  return (flipx(p[0]), flipx(p[1]))
+  return tuple(map(flipx, p))
 
 def flipyp(p):
-  return (flipy(p[0]), flipy(p[1]))
-
-def noflip(p):
-  return (p[1], p[2])
+  return tuple(map(flipy, p))
 
 def remove_symmetry(seq):
   seen = set()
   for s in seq:
-    q = noflip(s)
+    q = tuple(s)
     if q not in seen:
       yield s
     seen.add(q)
@@ -87,21 +124,43 @@ def remove_symmetry(seq):
     seen.add(flipyp(q))
     seen.add(flipyp(flipxp(q)))
 
-def get_symmetry(n, i, size):
-  if n == 0 and i == size / 2:
+def get_symmetry(n, i, middle):
+  if n == 0 and i == middle:
     return remove_symmetry
   else:
     return id_generator
 
-def collect_word(n, word, sharp):
+def collect_word(n, word, it):
+  ngramsize = 2 #if (len(word) > int(sys.argv[2]) or n == 0) else int(sys.argv[1])
+  start_positions = range(0, len(word) - 1, ngramsize - 1)
+  middle_position = start_positions[len(start_positions) // 2]
+  for i in start_positions:
+    ngram = word[i:i + ngramsize]
+    realsize = len(ngram)
+    transform = get_symmetry(n, i, middle_position)
+    for pos in transform(it.ngram_positions(realsize)):
+      option = ["#W%d_%d" % (n, i)]
+      for j in range(realsize):
+        option.append(item_letter(n, i + j, pos[j]))
+        option.append("p%s:%s" % (readable_pos(pos[j]), word[i + j]))
+        option.append("pw%d_%s:%s" % (n, encode_pos(pos[j]), encode(i + j)))
+      for pa, pb in zip(pos, pos[1:]):
+        if pa[0] != pb[0] and pa[1] != pb[1]:
+          mj = min(pa[0], pb[0])
+          mi = min(pa[1], pb[1])
+          option.append("d%d_%d%d" % (n, mj, mi))
+      yield " ".join(option)
+
+def collect_word2(n, word, sharp):
   sharp = "#" if sharp else ""
+  it = IterTorto()
   for i in range(len(word) - 1):
     a, b = w = word[i: i + 2]
     transform = get_symmetry(n, i, len(word))
-    for name, pa, pb in transform(flip(iter_torto())):
+    for pa, pb in transform(it.ngram_positions(2)):
       yield "%sW%d_%d %s %s p%s:%s p%s:%s %spw%d_%s:%s pw%d_%s:%s" % (
         sharp, n, i, item_letter(n, i, pa), item_letter(n, i + 1, pb),
-        pos(pa), a, pos(pb), b, diag(n, name, pa, pb),
+        pos(pa), a, pos(pb), b, diag(n, pa, pb),
         n, encode_pos(pa), encode(i), n, encode_pos(pb), encode(i + 1))
 
 def histogram(words):
@@ -164,8 +223,9 @@ def main():
   words = [input().strip() for _ in range(nwords)]
   words.sort(key=lambda w: len(w), reverse=True)
   options = []
+  it = IterTorto()
   for n, word in enumerate(words):
-    options.extend(collect_word(n, word, args.sharp))
+    options.extend(collect_word(n, word, it))
   if args.sharp:
     options.extend(collect_letters(words))
     options.extend(collect_bigrams(words))
