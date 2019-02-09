@@ -1,10 +1,15 @@
+#!/usr/bin/python3
+#
 # Takes a list of words and build a torto model to be used with Knuth's dlx2 solver.
 #
 # If you want to use plain dlx2:
-#   python torto.dlx2.py < words.txt > model.dlx
+#   ./torto.dlx2.py < words.txt > model.dlx
 #
 # If you want to use "Partial Cover":
-#   python torto.dlx2.py --sharp < words.txt > model.dlx
+#   ./torto.dlx2.py --sharp < words.txt > model.dlx
+#
+# If you want to use higher ngrams:
+#   ./torto.dlx2.py --ngrams  < words.txt > model.dlx
 
 import sys
 import itertools
@@ -12,14 +17,14 @@ import argparse
 from collections import Counter
 
 def iter_torto():
-  for j in xrange(6):
-    for i in xrange(2):
+  for j in range(6):
+    for i in range(2):
       yield ("h%d%d" % (i, j), (j, i), (j, i + 1))
-  for i in xrange(3):
-    for j in xrange(5):
+  for i in range(3):
+    for j in range(5):
       yield ("v%d%d" % (j, i), (j, i), (j + 1, i))
-  for i in xrange(2):
-    for j in xrange(5):
+  for i in range(2):
+    for j in range(5):
       yield ("d%d%d" % (j, i), (j, i), (j + 1, i + 1))
       yield ("u%d%d" % (j, i + 1), (j, i + 1), (j + 1, i))
 
@@ -54,8 +59,7 @@ def diag(n, name, pa, pb):
   return "d%d_%d%d " % (n, mj, mi)
 
 def id_generator(seq):
-  for s in seq:
-    yield s
+  yield from seq
 
 def flipx(p):
   return (p[0], 2 - p[1])
@@ -91,7 +95,7 @@ def get_symmetry(n, i, size):
 
 def collect_word(n, word, sharp):
   sharp = "#" if sharp else ""
-  for i in xrange(len(word) - 1):
+  for i in range(len(word) - 1):
     a, b = w = word[i: i + 2]
     transform = get_symmetry(n, i, len(word))
     for name, pa, pb in transform(flip(iter_torto())):
@@ -113,9 +117,9 @@ def histogram(words):
 def collect_letters(words):
   letters = histogram(words)
   for letter, count in letters.iteritems():
-    for c in xrange(count):
-      for j in xrange(6):
-        for i in xrange(3):
+    for c in range(count):
+      for j in range(6):
+        for i in range(3):
           p = (j, i)
           yield "L%s%d p%s:%s l%s%d:%s" % (
               letter, c, pos(p), letter, letter, c, encode_pos(p))
@@ -156,8 +160,8 @@ def main():
       description="Generate a torto dlx file from a list of words")
   parser.add_argument("-s", "--sharp", action="store_true", help="Use the sharp heuristic")
   args = parser.parse_args()
-  nwords = int(raw_input())
-  words = [raw_input().strip() for _ in xrange(nwords)]
+  nwords = int(input())
+  words = [input().strip() for _ in range(nwords)]
   words.sort(key=lambda w: len(w), reverse=True)
   options = []
   for n, word in enumerate(words):
@@ -172,8 +176,8 @@ def main():
       primary.add(item)
     for item in extract_secondary(option):
       secondary.add(item)
-  print "%s | %s" % (" ".join(primary), " ".join(secondary))
+  print ("%s | %s" % (" ".join(primary), " ".join(secondary)))
   for option in options:
-    print option
+    print (option)
 
 main()
