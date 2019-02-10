@@ -15,13 +15,15 @@ def write(torto, long_format):
 
 parser = argparse.ArgumentParser(
     description="Read output from dlx2 and draw solutions as Torto grids.")
-parser.add_argument("--ricbit", action="store_true",
+encoding = parser.add_mutually_exclusive_group()
+encoding.add_argument("--ricbit", action="store_false",
     help="Use Ricbit's encoding")
-parser.add_argument("--knuth", action="store_false",
+encoding.add_argument("--knuth", action="store_true",
     help="Use Knuth's encoding")
-parser.add_argument("--short", action="store_true",
+grid_format = parser.add_mutually_exclusive_group()
+grid_format.add_argument("--short", action="store_false",
     help="Output solutions in short format")
-parser.add_argument("--long", action="store_true",
+grid_format.add_argument("--long", action="store_true",
     help="Output solutions in long format")
 parser.add_argument("-p", "--progression", nargs="?", type=int, const=1000, default=None,
     help="Show progression status during processing")

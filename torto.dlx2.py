@@ -55,24 +55,6 @@ class IterTorto(object):
       if has_diag:
         self.diag.pop()
 
-
-def iter_torto():
-  for j in range(6):
-    for i in range(2):
-      yield ("h%d%d" % (i, j), (j, i), (j, i + 1))
-  for i in range(3):
-    for j in range(5):
-      yield ("v%d%d" % (j, i), (j, i), (j + 1, i))
-  for i in range(2):
-    for j in range(5):
-      yield ("d%d%d" % (j, i), (j, i), (j + 1, i + 1))
-      yield ("u%d%d" % (j, i + 1), (j, i + 1), (j + 1, i))
-
-def flip(edges):
-  for name, a, b in edges:
-    yield (name, a, b)
-    yield (name, b, a)
-
 def readable_pos(p):
   return "%d%d" % p
 
@@ -130,8 +112,12 @@ def get_symmetry(n, i, middle):
   else:
     return id_generator
 
-def collect_word(n, word, it):
-  ngramsize = 2 #if (len(word) > int(sys.argv[2]) or n == 0) else int(sys.argv[1])
+def collect_word(n, word, it, sharp, ngrams):
+  if ngrams is None:
+    ngramsize = 2
+  else:
+    wordsize, maxngram = map(int, ngrams)
+    ngramsize = 2 if (len(word) > wordsize or n == 0) else maxngram
   start_positions = range(0, len(word) - 1, ngramsize - 1)
   middle_position = start_positions[len(start_positions) // 2]
   for i in start_positions:
@@ -139,7 +125,8 @@ def collect_word(n, word, it):
     realsize = len(ngram)
     transform = get_symmetry(n, i, middle_position)
     for pos in transform(it.ngram_positions(realsize)):
-      option = ["#W%d_%d" % (n, i)]
+      prefix = "#" if sharp else ""
+      option = ["%sW%d_%d" % (prefix, n, i)]
       for j in range(realsize):
         option.append(item_letter(n, i + j, pos[j]))
         option.append("p%s:%s" % (readable_pos(pos[j]), word[i + j]))
@@ -151,37 +138,25 @@ def collect_word(n, word, it):
           option.append("d%d_%d%d" % (n, mj, mi))
       yield " ".join(option)
 
-def collect_word2(n, word, sharp):
-  sharp = "#" if sharp else ""
-  it = IterTorto()
-  for i in range(len(word) - 1):
-    a, b = w = word[i: i + 2]
-    transform = get_symmetry(n, i, len(word))
-    for pa, pb in transform(it.ngram_positions(2)):
-      yield "%sW%d_%d %s %s p%s:%s p%s:%s %spw%d_%s:%s pw%d_%s:%s" % (
-        sharp, n, i, item_letter(n, i, pa), item_letter(n, i + 1, pb),
-        pos(pa), a, pos(pb), b, diag(n, pa, pb),
-        n, encode_pos(pa), encode(i), n, encode_pos(pb), encode(i + 1))
-
 def histogram(words):
   global_hist = Counter()
   for word in words:
     local_hist = Counter()
     for item in word:
       local_hist[item] += 1
-    for item, count in local_hist.iteritems():
+    for item, count in local_hist.items():
       global_hist[item] = max(global_hist[item], count)
   return global_hist
 
 def collect_letters(words):
   letters = histogram(words)
-  for letter, count in letters.iteritems():
+  for letter, count in letters.items():
     for c in range(count):
       for j in range(6):
         for i in range(3):
           p = (j, i)
           yield "L%s%d p%s:%s l%s%d:%s" % (
-              letter, c, pos(p), letter, letter, c, encode_pos(p))
+              letter, c, readable_pos(p), letter, letter, c, encode_pos(p))
 
 def word_bigrams(words):
   for word in words:
@@ -190,14 +165,16 @@ def word_bigrams(words):
       bigram.sort()
     yield ["".join(bigram) for bigram in bigrams]
 
-def collect_bigrams(words):
+def collect_bigrams(words, it):
   bigrams = histogram(word_bigrams(words))
-  edges = flip(iter_torto())
-  for bigram, count in bigrams.iteritems():
-    for edge in flip(iter_torto()):
+  for bigram, count in bigrams.items():
+    for edge in it.ngram_positions(2):
       yield "B%s%d p%s:%s p%s:%s b%s%d_0:%s b%s%d_1:%s" % (
-          bigram, count, pos(edge[1]), bigram[0], pos(edge[2]), bigram[1],
-          bigram, count, encode_pos(edge[1]), bigram, count, encode_pos(edge[2]))
+          bigram, count,
+          readable_pos(edge[0]), bigram[0],
+          readable_pos(edge[1]), bigram[1],
+          bigram, count, encode_pos(edge[0]),
+          bigram, count, encode_pos(edge[1]))
 
 def collect_empty():
   for j, i in itertools.product(range(6), range(3)):
@@ -217,7 +194,10 @@ def extract_secondary(option):
 def main():
   parser = argparse.ArgumentParser(
       description="Generate a torto dlx file from a list of words")
-  parser.add_argument("-s", "--sharp", action="store_true", help="Use the sharp heuristic")
+  parser.add_argument("-s", "--sharp", action="store_true",
+      help="Use the sharp heuristic")
+  parser.add_argument("--ngram", nargs=2, metavar=("minsize", "ngramsize"),
+      help="Use ngrams greater than bigrams")
   args = parser.parse_args()
   nwords = int(input())
   words = [input().strip() for _ in range(nwords)]
@@ -225,10 +205,10 @@ def main():
   options = []
   it = IterTorto()
   for n, word in enumerate(words):
-    options.extend(collect_word(n, word, it))
+    options.extend(collect_word(n, word, it, args.sharp, args.ngram))
   if args.sharp:
     options.extend(collect_letters(words))
-    options.extend(collect_bigrams(words))
+    options.extend(collect_bigrams(words, it))
   primary = set()
   secondary = set()
   for option in options:
