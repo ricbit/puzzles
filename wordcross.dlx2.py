@@ -33,18 +33,35 @@ def encode_used_pos(pj, pi, value):
 def encode_word_pos(nw, pj, pi, value):
   return "u%s%s%s:%d" % (encode(nw), encode(pj), encode(pi), value)
 
-def option_word(nw, word, j, i, jj, ii, word_letters):
+def iter_word(word, j, i, jj, ii):
+  for k, letter in enumerate(word):
+    pj = j + k * jj
+    pi = i + k * ii
+    yield (k, letter, pj, pi)
+
+def iter_word_ident(nw, j, i, jj, ii):
+  if jj == 1:
+    yield "wvj%d:%s" % (nw, encode(j))
+    yield "wvi%d:%s" % (nw, encode(i))
+    yield "whj%d:-" % nw
+    yield "whi%d:-" % nw
+  else:
+    yield "whj%d:%s" % (nw, encode(j))
+    yield "whi%d:%s" % (nw, encode(i))
+    yield "wvj%d:-" % nw
+    yield "wvi%d:-" % nw
+
+def option_word(nw, word, j, i, jj, ii):
   option = ["#W%d" % nw]
+  option.extend(iter_word_ident(nw, j, i, jj, ii))
   pos = set()
   for k, letter in enumerate(word):
     pj = j + k * jj
     pi = i + k * ii
     option.append("p%d_%d:%s" % (pj, pi, letter))
-    option.append("wj%d_%d:%s" % (nw, k, encode(pj)))
-    option.append("wi%d_%d:%s" % (nw, k, encode(pi)))
     option.append(encode_used_pos(pj, pi, 1))
+    option.append("%s%d_%d:%s" % (("v" if jj == 1 else "h"), pj, pi, encode(nw)))
     pos.add((pj, pi))
-    word_letters[nw][k].add((pj, pi))
   for j, i in iter_positions():
     option.append(encode_word_pos(nw, j, i, int((j, i) in pos)))
   return " ".join(option)  
@@ -64,27 +81,40 @@ def option_bigram(aj, ai, bj, bi, words):
     option.append(encode_word_pos(nw, bj, bi, 1))
     yield " ".join(option)
 
-def collect_words(words):
+def gen_word_letters(words):
   word_letters = {}
-  for nw, word in enumerate(words):
-    word_letters[nw] = {i : set() for i in xrange(len(word))}
   for nw, word in enumerate(words):
     for j, i, jj, ii in iter_vector(word):
       if sizeh != sizew or nw > 0 or ii > 0:
-        yield option_word(nw, word, j, i, jj, ii, word_letters)
-  for nw, word in enumerate(words):
-    for nw2, word2 in enumerate(words):
-      if nw != nw2:
-        for k1, k2 in itertools.product(range(len(word)), range(len(word2))):
-          if word[k1] != word2[k2]:
-            continue
-          for p1, p2 in itertools.product(word_letters[nw][k1], word_letters[nw2][k2]):
-            if p1 != p2:
-              continue
-            j, i = p1  
-            yield "WM%d wj%d_%d:%s wi%d_%d:%s wj%d_%d:%s wi%d_%d:%s " % (
-              nw, nw, k1, encode(j), nw, k1, encode(i),
-              nw2, k2, encode(j), nw2, k2, encode(i))
+        for k, letter, pj, pi in iter_word(word, j, i, jj, ii):
+          word_letters.setdefault((pj, pi, letter), set()).add(
+            (nw, j, i, jj, ii))
+  return word_letters
+
+def iter_word_crossings(word_letters):
+  for (pj, pi, letter), words in word_letters.iteritems():
+    for word1, word2 in itertools.product(words, repeat=2):
+      nw1, j1, i1, jj1, ii1 = word1
+      nw2, j2, i2, jj2, ii2 = word2
+      if nw1 == nw2 or ii1 == ii2:
+        continue
+      yield (word1, word2)
+
+def collect_words(words):
+  word_letters = gen_word_letters(words)
+  possible_words = set()
+  for word1, word2 in iter_word_crossings(word_letters):
+    possible_words.add(word1)
+    possible_words.add(word2)
+  for nw, j, i, jj, ii in possible_words:
+    yield option_word(nw, words[nw], j, i, jj, ii)
+  for word1, word2 in iter_word_crossings(word_letters):
+    nw1, j1, i1, jj1, ii1 = word1
+    nw2, j2, i2, jj2, ii2 = word2
+    option = ["#WM%d" % nw1]
+    option.extend(iter_word_ident(nw1, j1, i1, jj1, ii1))
+    option.extend(iter_word_ident(nw2, j2, i2, jj2, ii2))
+    yield " ".join(option)
 
 def collect_bigrams(words):
   for j, i in iter_positions():
@@ -114,7 +144,7 @@ def extract_secondary(option):
 def main():
   nwords = int(raw_input())
   words = [raw_input().strip() for _ in xrange(nwords)]
-  words.sort(key=lambda x: len(x), reverse=True)
+  words.sort(key=lambda x: len(x), reverse=False)
   if any(len(word) > max(sizeh, sizew) for word in words):
     print >> sys.stderr, "Invalid grid"
     return
