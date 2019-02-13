@@ -119,4 +119,5 @@ Rules:
 * Place words in a 6x3 grid of letters.
 * The words must appear in the grid as a noncrossing chess king path.
 
+![Torto puzzle unsolved](images/torto.unsolved.png) ![Torto puzzle solved](images/torto.solved.png)
 
