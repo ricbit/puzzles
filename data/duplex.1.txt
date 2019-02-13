@@ -1,0 +1,6 @@
+2
+6 6 
+5 7
+donald knuth
+beware of bugs in the above code i have only proved it correct not tried it
+
