@@ -8,8 +8,10 @@ def decode(x):
 def draw_words_u(words):
   pos = [['.'] * 10 for _ in xrange(10)]
   for word in words:
-    match = re.search("c(\w)(\w):(\d)", word)
-    pos[decode(match.group(1))][decode(match.group(2))] = match.group(3)
+    match = re.search("(?<!\w)c(\w)(\w):(\d)", word)
+    if match:
+      print >> sys.stderr, word, decode(match.group(1)), decode(match.group(2)), match.group(3)
+      pos[decode(match.group(1))][decode(match.group(2))] = match.group(3)
   return pos
 
 def draw_words(words):
