@@ -10,7 +10,6 @@ def draw_words_u(words):
   for word in words:
     match = re.search("(?<!\w)c(\w)(\w):(\d)", word)
     if match:
-      print >> sys.stderr, word, decode(match.group(1)), decode(match.group(2)), match.group(3)
       pos[decode(match.group(1))][decode(match.group(2))] = match.group(3)
   return pos
 

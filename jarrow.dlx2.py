@@ -60,7 +60,7 @@ def collect_cells(n, heads, targets, numbers):
     minsize = heads[j][i][2]
     maxsize = heads[j][i][3]
     for size in xrange(minsize, maxsize + 1):
-      option = ["C%s%s" % encode_pos(j, i)]
+      option = ["#C%s%s" % encode_pos(j, i)]
       option.append("c%s%s:%d" % encode_pos(j, i, size))
       for x in xrange(1, 10):
         option.append("i%s%s%d:%d" % encode_pos(j, i, x, int(x == size)))
@@ -70,7 +70,7 @@ def collect_cells(n, heads, targets, numbers):
       choices = set(range(1, 10)) - set(heads[j][i][0])
       for comb in itertools.combinations(choices, size - len(heads[j][i][0])):
         all_choices = set(comb).union(set(heads[j][i][0]))
-        option = ["H%s%s" % encode_pos(j, i)]
+        option = ["#H%s%s" % encode_pos(j, i)]
         option.append("c%s%s:%d" % encode_pos(j, i, size))
         for k in xrange(1, 10):
           option.append("h%s%s%d:%d" % encode_pos(j, i, k, int(k in all_choices)))
@@ -84,7 +84,7 @@ def collect_greater(n, heads, arrows):
         maxsize = heads[j][i][3]
         for s1 in xrange(minsize, maxsize + 1):
           for s2 in xrange(heads[tj][ti][2], s1 + 1):
-            option = ["G%s%s%s%s" % (encode_pos(j, i) + encode_pos(tj, ti))]
+            option = ["#G%s%s%s%s" % (encode_pos(j, i) + encode_pos(tj, ti))]
             option.append("c%s%s:%d" % encode_pos(j, i, s1))
             option.append("c%s%s:%d" % encode_pos(tj, ti, s2))
             yield " ".join(option)
