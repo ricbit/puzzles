@@ -6,12 +6,16 @@
 < int main (int argc, char *argv[]) {
 ---
 > main (int argc, char *argv[]) {
-308d307
+187d186
+< int skip_solutions = 0;
+309,310d307
 < int total_sharps = 0; /* total number of sharp items */
-408d406
+< int active_sharp_items = 0; /* number of active sharp items */
+410d406
 <   if (buf[p]=='#') total_sharps++;
-431,447d428
+433,450d428
 < @<Sort item names to place sharps on front@>;
+< active_sharp_items = total_sharps;
 < if (vbose & show_details) {
 <   fprintf(stderr, "Total sharps %d\n", total_sharps);
 < }
@@ -28,13 +32,26 @@
 <     last_nonsharp++;
 <   }
 < }
-786,788c767
+593,598c571
+< advance:@+if (cur_node==best_itm) {
+<   skip_solutions = 0;
+<   goto backup;
+< }
+< if (skip_solutions && cur_node > total_sharps) goto backup;
+< skip_solutions = 0;
+---
+> advance:@+if (cur_node==best_itm) goto backup;
+651d623
+<   if (c <= total_sharps) active_sharp_items--;
+702d673
+<   if (c <= total_sharps) active_sharp_items++;
+796,798c767
 < t=max_nodes * 2;
 < int nonsharp_len=max_nodes;
 < int nonsharp_best = -1;
 ---
 > t=max_nodes;
-796,803c775,776
+806,813c775,776
 <   int current_len = (o, nd[k].len);
 <   /* Sharp heuristic: always choose an item starting with #,
 <      unless there's an item with len 0 or 1 */
@@ -46,7 +63,9 @@
 ---
 >   if (o,nd[k].len<=t) {
 >     if (nd[k].len<t) best_itm=k,t=nd[k].len,p=1;
-809,811d781
-< }
+820,822d782
 < if (t > max_nodes) {
 <   t -= max_nodes;
+< }
+845d804
+<   skip_solutions = 1;

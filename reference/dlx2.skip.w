@@ -184,6 +184,7 @@ ullng maxcount=0xffffffffffffffff; /* stop after finding this many solutions */
 ullng timeout=0x1fffffffffffffff; /* give up after this many mems */
 FILE *shape_file; /* file for optional output of search tree shape */
 char *shape_name; /* its name */
+int skip_solutions = 0;
 
 @ If an option appears more than once on the command line, the first
 appearance takes precedence.
@@ -306,6 +307,7 @@ item cl[max_cols+2]; /* the master list of items */
 int second=max_cols; /* boundary between primary and secondary items */
 int last_itm; /* the first item in |cl| that's not yet used */
 int total_sharps = 0; /* total number of sharp items */
+int active_sharp_items = 0; /* number of active sharp items */
 
 @ One |item| struct is called the root. It serves as the head of the
 list of items that need to be covered, and is identifiable by the fact
@@ -429,6 +431,7 @@ oo,cl[root].prev=second-1, cl[second-1].next=root;
 last_node=last_itm; /* reserve all the header nodes and the first spacer */
 /* we have |nd[last_node].itm=0| in the first spacer */
 @<Sort item names to place sharps on front@>;
+active_sharp_items = total_sharps;
 if (vbose & show_details) {
   fprintf(stderr, "Total sharps %d\n", total_sharps);
 }
@@ -587,7 +590,12 @@ if (sanity_checking) sanity();
 @<Set |best_itm| to the best item for branching@>;
 cover(best_itm);
 oo,cur_node=choice[level]=nd[best_itm].down;
-advance:@+if (cur_node==best_itm) goto backup;
+advance:@+if (cur_node==best_itm) {
+  skip_solutions = 0;
+  goto backup;
+}
+if (skip_solutions && cur_node > total_sharps) goto backup;
+skip_solutions = 0;
 if ((vbose&show_choices) && level<show_choices_max) {
   fprintf(stderr,"L"O"d:",level);
   print_option(cur_node,stderr);
@@ -640,6 +648,7 @@ how much would be saved.
 @<Sub...@>=
 void cover(int c) {
   register int cc,l,r,rr,nn,uu,dd,t;
+  if (c <= total_sharps) active_sharp_items--;
   o,l=cl[c].prev,r=cl[c].next;
   oo,cl[l].next=r,cl[r].prev=l;
   updates++;
@@ -690,6 +699,7 @@ void uncover(int c) {
     }
   o,l=cl[c].prev,r=cl[c].next;
   oo,cl[l].next=cl[r].prev=c;
+  if (c <= total_sharps) active_sharp_items++;
 }
 
 @ @<Cover all other items of |cur_node|@>=
@@ -832,6 +842,7 @@ if (shape_file) {
   if (shape_file) {
     fprintf(shape_file,"sol\n");@+fflush(shape_file);
   }
+  skip_solutions = 1;
   @<Record solution and |goto recover|@>;
 }
 
