@@ -2,13 +2,11 @@ import sys
 import re
 import itertools
 
-def draw_words_r(words, regexp):
+def draw_words_r(maxj, maxi, words, regexp):
   pos = []
   for word in words:
     for match in re.findall(regexp, word):
       pos.append(match)
-  maxj = 1 + max(int(p[0]) for p in pos)
-  maxi = 1 + max(int(p[1]) for p in pos)
   grid = [["."] * maxi for _ in xrange(maxj)]
   for j, i, c in pos:
     grid[int(j)][int(i)] = c
@@ -25,13 +23,11 @@ def recode(x):
   else:
     return chr(n - 10 + ord("A"))
 
-def draw_words_u(words, regexp):
+def draw_words_u(maxj, maxi, words, regexp):
   pos = []
   for word in words:
     for match in re.findall(regexp, word):
       pos.append(match)
-  maxj = 1 + max(decode(p[1]) for p in pos)
-  maxi = 1 + max(decode(p[2]) for p in pos)
   grid = [["."] * maxi for _ in xrange(maxj)]
   for nw, j, i, c in pos:
     if c == '0':
@@ -46,13 +42,11 @@ def draw_words_u(words, regexp):
   for line in grid:
     yield "".join(line)
 
-def draw_words_s(words, regexp):
+def draw_words_s(maxj, maxi, words, regexp):
   pos = []
   for word in words:
     for match in re.findall(regexp, word):
       pos.append(match)
-  maxj = 1 + max(decode(p[0]) for p in pos)
-  maxi = 1 + max(decode(p[1]) for p in pos)
   grid = [["."] * maxi for _ in xrange(maxj)]
   for j, i, c in pos:
     jj = decode(j)
@@ -61,10 +55,20 @@ def draw_words_s(words, regexp):
   for line in grid:
     yield "".join(line)
 
+def find_dim(lines):
+  pos = set()
+  for line in lines:
+    for match in re.findall(r"P(\d+)_(\d+)", line):
+      pos.add(match)
+  h = max(p[0] for p in pos)
+  w = max(p[1] for p in pos)
+  return 1 + int(h), 1 + int(w)
+
 def draw_words(words):
-  grid = draw_words_r(words, r"p(\d+)_(\d+):(\w)")
-  word = draw_words_u(words, r"u(\w)(\w)(\w):(\w)")
-  used = draw_words_s(words, r"u(\w)(\w):(\w)")
+  h, w = find_dim(words)
+  grid = draw_words_r(h, w, words, r"p(\d+)_(\d+):(\w)")
+  word = draw_words_u(h, w, words, r"u(\w)(\w)(\w):(\w)")
+  used = draw_words_s(h, w, words, r"u(\w)(\w):(\w)")
   for lines in itertools.izip_longest(grid, word, used):
     mw = max(len(x) for x in lines if x)
     print " ".join((line if line else "." * mw) for line in lines)

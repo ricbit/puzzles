@@ -6,7 +6,7 @@ DIR = {
   "D": (1, 0),
   "L": (0, -1),
   "R": (0, 1)
-}  
+}
 
 def collect_heads(n, arrows, numbers, j, i):
   jj, ii = DIR[arrows[j][i]]
@@ -48,7 +48,7 @@ def collect_targets(n, heads, j, i):
       if tj == j and ti == i:
         cell.append((jj, ii))
   return cell
-  
+
 def encode(x):
   return chr(ord('a') + x)
 
@@ -61,7 +61,7 @@ def collect_cells(n, heads, targets, numbers):
     maxsize = heads[j][i][3]
     for size in xrange(minsize, maxsize + 1):
       option = ["#C%s%s" % encode_pos(j, i)]
-      option.append("c%s%s:%d" % encode_pos(j, i, size))
+      option.append("c%s%s:%s" % encode_pos(j, i, encode(size)))
       for x in xrange(1, 10):
         option.append("i%s%s%d:%d" % encode_pos(j, i, x, int(x == size)))
       for target in targets[j][i]:
@@ -71,7 +71,7 @@ def collect_cells(n, heads, targets, numbers):
       for comb in itertools.combinations(choices, size - len(heads[j][i][0])):
         all_choices = set(comb).union(set(heads[j][i][0]))
         option = ["#H%s%s" % encode_pos(j, i)]
-        option.append("c%s%s:%d" % encode_pos(j, i, size))
+        option.append("c%s%s:%s" % encode_pos(j, i, encode(size)))
         for k in xrange(1, 10):
           option.append("h%s%s%d:%d" % encode_pos(j, i, k, int(k in all_choices)))
         yield " ".join(option)
@@ -85,8 +85,8 @@ def collect_greater(n, heads, arrows):
         for s1 in xrange(minsize, maxsize + 1):
           for s2 in xrange(heads[tj][ti][2], s1 + 1):
             option = ["#G%s%s%s%s" % (encode_pos(j, i) + encode_pos(tj, ti))]
-            option.append("c%s%s:%d" % encode_pos(j, i, s1))
-            option.append("c%s%s:%d" % encode_pos(tj, ti, s2))
+            option.append("c%s%s:%s" % encode_pos(j, i, encode(s1)))
+            option.append("c%s%s:%s" % encode_pos(tj, ti, encode(s2)))
             yield " ".join(option)
 
 def collect_empty(n, heads):
@@ -109,7 +109,7 @@ def collect_primary(options):
     for item in option.split():
       if item[0].isupper() or item[0] == "#":
         items.add(item)
-  return items        
+  return items
 
 def collect_secondary(options):
   items = set()

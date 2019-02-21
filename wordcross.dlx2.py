@@ -93,15 +93,14 @@ def gen_word_letters(words):
 
 def iter_word_crossings(word_letters):
   for (pj, pi, letter), words in word_letters.iteritems():
-    for word1, word2 in itertools.product(words, repeat=2):
-      nw1, j1, i1, jj1, ii1 = word1
-      nw2, j2, i2, jj2, ii2 = word2
+    for wordtuple1, wordtuple2 in itertools.product(words, repeat=2):
+      nw1, j1, i1, jj1, ii1 = wordtuple1
+      nw2, j2, i2, jj2, ii2 = wordtuple2
       if nw1 == nw2 or ii1 == ii2:
         continue
-      yield (word1, word2)
+      yield (wordtuple1, wordtuple2)
 
-def collect_words(words):
-  word_letters = gen_word_letters(words)
+def collect_words(words, word_letters):
   possible_words = set()
   for word1, word2 in iter_word_crossings(word_letters):
     possible_words.add(word1)
@@ -114,6 +113,9 @@ def collect_words(words):
     option = ["#WM%d" % nw1]
     option.extend(iter_word_ident(nw1, j1, i1, jj1, ii1))
     option.extend(iter_word_ident(nw2, j2, i2, jj2, ii2))
+    for nw3 in xrange(len(words)):
+      if nw1 != nw3:
+        option.append("j%d_%d:%d" % (nw1, nw3, int(nw2 == nw3)))
     yield " ".join(option)
 
 def collect_bigrams(words):
@@ -130,6 +132,18 @@ def collect_bigrams(words):
     for nw, word in enumerate(words):
       option.append(encode_word_pos(nw, j, i, 0))
     yield " ".join(option)
+
+def collect_order(words, word_letters):
+  yield "R0 r0:%s" % encode(0)
+  seen = set()
+  for wordtuple1, wordtuple2 in iter_word_crossings(word_letters):
+    nw1 = wordtuple1[0]
+    nw2 = wordtuple2[0]
+    if nw1 == 0 or (nw1, nw2) in seen:
+      continue
+    seen.add((nw1, nw2))
+    for a in xrange(1, len(words)):
+      yield "R%d r%d:%s r%d:%s j%d_%d:1" % (nw1, nw1, encode(a), nw2, encode(a - 1), nw1, nw2)
 
 def extract_primary(option):
   for item in option.split():
@@ -148,8 +162,10 @@ def main():
   if any(len(word) > max(sizeh, sizew) for word in words):
     print >> sys.stderr, "Invalid grid"
     return
-  options = list(collect_words(words))
+  word_letters = gen_word_letters(words)
+  options = list(collect_words(words, word_letters))
   options.extend(collect_bigrams(words))
+  options.extend(collect_order(words, word_letters))
   primary = set()
   secondary = set()
   for option in options:
