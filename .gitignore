@@ -1,5 +1,7 @@
 solutions/*
 *.html
+*.txt
+*.dlx 
 slither.cp
 snail.human
 stars.cover
