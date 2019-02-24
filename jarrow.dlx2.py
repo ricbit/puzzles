@@ -2,10 +2,10 @@ import itertools
 import functools
 
 DIR = {
-  "U": (-1, 0),
-  "D": (1, 0),
-  "L": (0, -1),
-  "R": (0, 1)
+  "^": (-1, 0),
+  "v": (1, 0),
+  "<": (0, -1),
+  ">": (0, 1)
 }
 
 def collect_heads(n, arrows, numbers, j, i):
