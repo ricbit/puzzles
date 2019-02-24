@@ -1,6 +1,6 @@
 # Historic information
 
-Some historic information about puzzles in Brazil. Most of the information was researched and released to the public by Sergio Barcellos Ximenes, puzzle historian.
+Some historic information about puzzles in Brazil. Most of the information was researched and released to the public by Sérgio Barcellos Ximenes, puzzle historian.
 
 ## Torto
 
@@ -12,6 +12,6 @@ While we don't know the author of Torto yet, we have some information on its pro
 
 ## Word search
 
-Most texts will credit the invention of Word Search to Norman E. Gibat in 1968. However, we have found prior art in the brazilian magazine "Almanaque de Seleções Recreativas", dated from 1966. On page 43, there is a puzzle called "Viajando" ("Travelling"), created by Henrique Ramos. This puzzle calls for the names of 12 countries in a word grid, following exactly the same rules as the classic word search: words can be found on horizontal, vertical, diagonals, and backwards. (The 12 countries I found were *Arabia, Japão, Peru, Uruguai, Panama, Chipre, Grecia, Siria, França, Irlanda, Palau and Gana*)
+Most texts will credit the invention of Word Search to Norman E. Gibat in 1968. However, we have found prior art in the brazilian magazine "Almanaque de Seleções Recreativas", dated from 1966. On page 43, there is a puzzle called "Viajando" ("Travelling"), created by Henrique Ramos. This puzzle calls for the names of 12 countries in a word grid, following exactly the same rules as the classic word search: words can be found on horizontal, vertical, diagonals, and backwards. (The 12 countries I found were *Arabia, Japão, Peru, Uruguai, Panama, Chipre, Grecia, Siria, França, Palau, Gana and Irland(sp?a)*)
 
 From this magazine, we have scans of [the cover](Almanaque-cover.jpg), [the editorial](Almanaque-address.jpg), and of [the puzzle Viajando itself](Almanaque-wordsearch.jpg).
