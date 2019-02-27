@@ -8,8 +8,8 @@ DIR = {
   ">": (0, 1)
 }
 
-def collect_targets(n, arrows, numbers, j, i):
-  jj, ii = DIR[arrows[j][i]]
+def collect_targets(n, directions, numbers, j, i):
+  jj, ii = DIR[directions[j][i]]
   pj = j + jj
   pi = i + ii
   cell = []
@@ -20,21 +20,21 @@ def collect_targets(n, arrows, numbers, j, i):
       seen.add(int(numbers[pj][pi]))
     pj += jj
     pi += ii
-  minsize = max(1, len(seen))
-  maxsize = sum(1 for jj, ii in cell if numbers[jj][ii] == ".") + minsize
+  minsize = max(1, len(seen)) if len(cell) else 0
+  maxsize = sum(1 for jj, ii in cell if numbers[jj][ii] == ".") + len(seen)
   if numbers[j][i] != '.':
     minsize = maxsize = int(numbers[j][i])
   return (seen, cell, minsize, maxsize)
 
 def create_grid(n, func, *args):
   f = functools.partial(func, *args)
-  arrows = []
+  directions = []
   for j in xrange(n):
     line = []
     for i in xrange(n):
       line.append(f(j, i))
-    arrows.append(line)
-  return arrows
+    directions.append(line)
+  return directions
 
 def iter_grid(n):
   for j in xrange(n):
@@ -62,45 +62,54 @@ def collect_cells(n, targets, arrows, numbers):
     for size in xrange(minsize, maxsize + 1):
       option = ["#C%s%s" % encode_pos(j, i)]
       option.append("c%s%s:%s" % encode_pos(j, i, encode(size)))
-      for x in xrange(1, 10):
+      for x in xrange(0, 10):
         option.append("i%s%s%d:%d" % encode_pos(j, i, x, int(x == size)))
       for arrow in arrows[j][i]:
         option.append("h%s%s%d:1" % encode_pos(arrow[0], arrow[1], size))
       yield " ".join(option)
-      choices = set(range(1, 10)) - set(targets[j][i][0])
-      for comb in itertools.combinations(choices, size - len(targets[j][i][0])):
+      if len(targets[j][i][1]):
+        choices = set(range(0, 10)) - set(targets[j][i][0])
+        combs = itertools.combinations(choices, size - len(targets[j][i][0]))
+      else:
+        combs = [[0]]
+      for comb in combs:
         all_choices = set(comb).union(set(targets[j][i][0]))
         option = ["#H%s%s" % encode_pos(j, i)]
         option.append("c%s%s:%s" % encode_pos(j, i, encode(size)))
-        for k in xrange(1, 10):
+        for k in xrange(0, 10):
           option.append("h%s%s%d:%d" % encode_pos(j, i, k, int(k in all_choices)))
         yield " ".join(option)
 
-def collect_greater(n, targets, arrows):
+def collect_greater(n, targets, directions):
   for j, i in iter_grid(n):
     for tj, ti in targets[j][i][1]:
-      if arrows[tj][ti] == arrows[j][i]:
+      if directions[tj][ti] == directions[j][i]:
         minsize = targets[j][i][2]
         maxsize = targets[j][i][3]
         for s1 in xrange(minsize, maxsize + 1):
           for s2 in xrange(targets[tj][ti][2], s1 + 1):
-            option = ["#G%s%s%s%s" % (encode_pos(j, i) + encode_pos(tj, ti))]
+            option = ["G%s%s%s%s" % (encode_pos(j, i) + encode_pos(tj, ti))]
             option.append("c%s%s:%s" % encode_pos(j, i, encode(s1)))
             option.append("c%s%s:%s" % encode_pos(tj, ti, encode(s2)))
             yield " ".join(option)
 
 def collect_empty(n, targets):
   for j, i in iter_grid(n):
-    for k in xrange(1, 10):
-      option = ["E%s%s%d" % encode_pos(j, i, k)]
-      option.append("h%s%s%d:0" % encode_pos(j, i, k))
-      for jj, ii in targets[j][i][1]:
-        option.append("i%s%s%d:0" % encode_pos(jj, ii, k))
-      yield " ".join(option)
-      for jj, ii in targets[j][i][1]:
+    for k in xrange(0, 10):
+      if targets[j][i][1] and k > 0:
         option = ["E%s%s%d" % encode_pos(j, i, k)]
-        option.append("h%s%s%d:1" % encode_pos(j, i, k))
-        option.append("i%s%s%d:1" % encode_pos(jj, ii, k))
+        option.append("h%s%s%d:0" % encode_pos(j, i, k))
+        for jj, ii in targets[j][i][1]:
+          option.append("i%s%s%d:0" % encode_pos(jj, ii, k))
+        yield " ".join(option)
+        for jj, ii in targets[j][i][1]:
+          option = ["E%s%s%d" % encode_pos(j, i, k)]
+          option.append("h%s%s%d:1" % encode_pos(j, i, k))
+          option.append("i%s%s%d:1" % encode_pos(jj, ii, k))
+          yield " ".join(option)
+      elif k == 0 and not targets[j][i][1]:
+        option = ["E%s%s0" % encode_pos(j, i)]
+        option.append("h%s%s0:1" % encode_pos(j, i))
         yield " ".join(option)
 
 def collect_primary(options):
@@ -121,13 +130,13 @@ def collect_secondary(options):
 
 def main():
   n = int(raw_input())
-  arrows = [raw_input().strip() for _ in xrange(n)]
+  directions = [raw_input().strip() for _ in xrange(n)]
   numbers = [raw_input().strip() for _ in xrange(n)]
-  targets = create_grid(n, collect_targets, n, arrows, numbers)
+  targets = create_grid(n, collect_targets, n, directions, numbers)
   arrows = create_grid(n, collect_arrows, n, targets)
   options = []
   options.extend(collect_cells(n, targets, arrows, numbers))
-  options.extend(collect_greater(n, targets, arrows))
+  options.extend(collect_greater(n, targets, directions))
   options.extend(collect_empty(n, targets))
   primary = collect_primary(options)
   secondary = collect_secondary(options)

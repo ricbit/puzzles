@@ -32,26 +32,20 @@
 <     last_nonsharp++;
 <   }
 < }
-593,598c571
-< advance:@+if (cur_node==best_itm) {
-<   skip_solutions = 0;
-<   goto backup;
-< }
+594,595d571
 < if (skip_solutions && cur_node > total_sharps) goto backup;
 < skip_solutions = 0;
----
-> advance:@+if (cur_node==best_itm) goto backup;
-651d623
+648d623
 <   if (c <= total_sharps) active_sharp_items--;
-702d673
+699d673
 <   if (c <= total_sharps) active_sharp_items++;
-796,798c767
+793,795c767
 < t=max_nodes * 2;
 < int nonsharp_len=max_nodes;
 < int nonsharp_best = -1;
 ---
 > t=max_nodes;
-806,813c775,776
+803,810c775,776
 <   int current_len = (o, nd[k].len);
 <   /* Sharp heuristic: always choose an item starting with #,
 <      unless there's an item with len 0 or 1 */
@@ -63,9 +57,9 @@
 ---
 >   if (o,nd[k].len<=t) {
 >     if (nd[k].len<t) best_itm=k,t=nd[k].len,p=1;
-820,822d782
+817,819d782
 < if (t > max_nodes) {
 <   t -= max_nodes;
 < }
-845d804
+842d804
 <   skip_solutions = 1;

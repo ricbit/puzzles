@@ -590,10 +590,7 @@ if (sanity_checking) sanity();
 @<Set |best_itm| to the best item for branching@>;
 cover(best_itm);
 oo,cur_node=choice[level]=nd[best_itm].down;
-advance:@+if (cur_node==best_itm) {
-  skip_solutions = 0;
-  goto backup;
-}
+advance:@+if (cur_node==best_itm) goto backup;
 if (skip_solutions && cur_node > total_sharps) goto backup;
 skip_solutions = 0;
 if ((vbose&show_choices) && level<show_choices_max) {

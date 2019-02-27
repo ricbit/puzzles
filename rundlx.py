@@ -15,8 +15,11 @@ def main():
   speed = parser.add_mutually_exclusive_group()
   speed.add_argument("--fast", help="Output progress fast", action="store_true")
   speed.add_argument("--faster", help="Output progress faster", action="store_true")
+  parser.add_argument("--pre", help="Run the preprocessor", nargs=1,
+      choices=["pipe", "stop"])
   parser.add_argument("--verbose", help="Verbose output", action="store_true")
-  parser.add_argument("--stop", help="Stop at the nth solution", nargs="?", default=None, type=int, metavar="n")
+  parser.add_argument("--stop", help="Stop at the nth solution", nargs="?",
+      default=None, type=int, metavar="n")
   parser.add_argument("template", help="File template")
   args = parser.parse_args()
   if args.sharp:
@@ -37,10 +40,23 @@ def main():
   else:
     ticks = "d1000000000"
   stop = "t%d" % args.stop if args.stop else ""
-  commandline = (
-      '(time /home/ricbit/work/knuth/dlx/%s m1 %s %s %s < %s.dlx) |& ' 
-      'tee %s.out.txt | grep -v -P "^(\s(?!after)|\d+:|Level|L\d+)"' %
-      (executable, ticks, stop, verbose, args.template, args.template))
+  if args.pre and args.pre[0] == "stop":
+    commandline = (
+        '(time /home/ricbit/work/knuth/dlx/dlx-pre < %s.dlx) > '
+        '%s.pre.dlx ' % #| grep -v -P "^(\s(?!after)|\d+:|Level|L\d+)"' %
+        (args.template, args.template))
+  else:
+    if args.pre and args.pre[0] == "pipe":
+      commandpipe = (
+          '/home/ricbit/work/knuth/dlx/dlx-pre < %s.dlx | '
+          '/home/ricbit/work/knuth/dlx/%s m1 %s %s %s ' % 
+          (args.template, executable, ticks, stop, verbose))
+    else:
+      commandpipe = ('/home/ricbit/work/knuth/dlx/%s m1 %s %s %s < %s.dlx ' %
+          (executable, ticks, stop, verbose, args.template))
+    commandline = (
+        '(time (%s)) |& tee %s.out.txt | grep -v -P "^(\s(?!after)|\d+:|Level|L\d+)"' %
+        (commandpipe, args.template))
   subprocess.call(commandline, shell=True, executable="/bin/bash")
 
 main()

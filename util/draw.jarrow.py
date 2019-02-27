@@ -5,17 +5,25 @@ import itertools
 def decode(x):
   return ord(x) - ord('a')
 
+def get_size(lines):
+  size = 0
+  for line in lines:
+    for match in re.findall(r'E(\w)\w\d', line):
+      size = max(size, decode(match))
+  return size + 1
+
 def draw_words_u(words):
-  pos = [['.'] * 10 for _ in xrange(10)]
+  size = get_size(words)
+  pos = [['.'] * size for _ in xrange(size)]
   for word in words:
     match = re.search("(?<!\w)c(\w)(\w):(\w)", word)
     if match:
-      pos[decode(match.group(1))][decode(match.group(2))] = decode(match.group(3))
+      pos[decode(match.group(1))][decode(match.group(2))] = str(decode(match.group(3)))
   return pos
 
 def draw_words(words):
   for line in draw_words_u(words):
-    print line
+    print "".join(line)
   print
 
 words = []
