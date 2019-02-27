@@ -1,3 +1,8 @@
+# Takes a description of a Japanese Arrows puzzle and 
+# build a model to run with Knuth's dlx2 solver.
+#
+# Usage: python jarrow.dlx2.py < jarrow.txt > model.dlx
+
 import itertools
 import functools
 
@@ -127,6 +132,12 @@ def collect_secondary(options):
       if item[0].islower():
         items.add(item.split(":")[0])
   return items
+
+def print_targets(n, targets, arrows):
+  for j in xrange(n):
+    for i in xrange(n):
+      print j, i, "target", targets[j][i]
+      print j, i, "arrow", arrows[j][i]
 
 def main():
   n = int(raw_input())
