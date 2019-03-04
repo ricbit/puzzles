@@ -34,8 +34,8 @@ def build_graph(nsrc, dstpositions, srcwords, dstwords):
   srcmap = {i:{} for i in xrange(nsrc)}
   dstcandidates = {}
   dstmap = {}
+  print >> sys.stderr, "Building dst graph"
   for j, dstposition in enumerate(dstpositions):
-    print >> sys.stderr, "Processing src word ", j
     positions = get_positions(dstposition)
     dstmap[j] = positions.keys()
     dstcandidates[j] = {}
@@ -46,7 +46,7 @@ def build_graph(nsrc, dstpositions, srcwords, dstwords):
   return dstmap, dstcandidates
 
 def print_len(name, graph):
-  print name, [len(v) for v in graph.itervalues()]
+  print >> sys.stderr, name, [len(v) for v in graph.itervalues()]
 
 def valid_word(word):
   return len(word) < 12 and all(w.islower() for w in word)
@@ -54,6 +54,7 @@ def valid_word(word):
 def build_src_graph(nsrc, dstgraph):
   keys = {}
   dstmap = {}
+  print >> sys.stderr, "Building src graph"
   for j, dst in dstgraph.iteritems():
     for dstword, srcdetails in dst.iteritems():
       for sw, srcwords in srcdetails.iteritems():
@@ -62,7 +63,6 @@ def build_src_graph(nsrc, dstgraph):
         for srcword in srcwords:
           dstmap[sw].setdefault(srcword, {}).setdefault(j, set()).add(dstword)
   for sw, indexes in keys.iteritems():
-    print >> sys.stderr, "Processing dst word ", sw
     remove = set()
     for srcword, dst in dstmap[sw].iteritems():
       if any(i not in dstmap[sw][srcword] for i in indexes):
@@ -93,13 +93,9 @@ def clean_graph(dstgraph, srcgraph, dstpositions):
   return change
 
 def iterate(dstpositions, dstgraph, srcpositions, srcgraph):
-  print
-  print dstpositions
-  print srcpositions
   print_len("dst", dstgraph)
   print_len("src", srcgraph)
   while True:
-    print 
     if not clean_graph(dstgraph, srcgraph, dstpositions):
       break
     print_len("dst", dstgraph)
@@ -117,11 +113,10 @@ def main():
   srcwords = open("words/words5-from-sgb").read().split()[:1000]
   dstwords = [[], []]
   for i in xrange(2, 12):
-    dstwords.append(open("words/words%d-from-OSPD4" % i).read().split())
+    words = open("words/words%d-from-OSPD4" % i).read().split()
+    dstwords.append(words[:len(words) * 4 / 10])
   dstmap, dstgraph = build_graph(nsrc, dstpositions, srcwords, dstwords)
-  print [len(v) for k,v in dstgraph.iteritems()]
   srcmap, srcgraph = build_src_graph(nsrc, dstgraph)
-  print [len(v) for k,v in srcgraph.iteritems()]
   iterate(dstmap, dstgraph, srcmap, srcgraph)
   return
   options = []
