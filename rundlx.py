@@ -10,7 +10,8 @@ def main():
   binary.add_argument("--sharp", help="Use the sharp heuristic", action="store_true")
   binary.add_argument("--skip", help="Use the skip heuristic", action="store_true")
   binary.add_argument("--dlx1", help="Use dlx1 (original)", action="store_true")
-  binary.add_argument("--dlx2", help="Use dlx2 (variant with colors)", action="store_true")
+  binary.add_argument("--dlx2", help="Use dlx2 (variant with colors as characters)", action="store_true")
+  binary.add_argument("--digits", help="Use dlx2 (variant with colors as digits)", action="store_true")
   binary.add_argument("--dlx3", help="Use dlx3 (variant with multiplicity)", action="store_true")
   binary.add_argument("--dlx5", help="Use dlx5 (variant with cost)", action="store_true")
   speed = parser.add_mutually_exclusive_group()
@@ -27,6 +28,8 @@ def main():
     executable = "dlx2.sharp"
   elif args.skip:
     executable = "dlx2.skip"
+  elif args.digits:
+    executable = "dlx2.digits"
   elif args.dlx1:
     executable = "dlx1"
   elif args.dlx3:

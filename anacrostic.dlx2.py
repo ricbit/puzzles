@@ -2,6 +2,7 @@ import itertools
 import sys
 import string
 import collections
+import dlx
 
 def word_index(word, index):
   return tuple(word[i] for i in index)
@@ -23,9 +24,9 @@ def get_wordmap(positions, srcwords, dstword, srccache={}):
       wordmap[sw] = srccache[dsttuple].copy()
     else:
       words = set()
-      for srcword in srcwords:
+      for j, srcword in enumerate(srcwords):
         if word_index(srcword, srcindex) == dsttuple:
-          words.add(srcword)
+          words.add(j)
       wordmap[sw] = words
       srccache[dsttuple] = words.copy()
   return wordmap
@@ -39,10 +40,10 @@ def build_graph(nsrc, dstpositions, srcwords, dstwords):
     positions = get_positions(dstposition)
     dstmap[j] = positions.keys()
     dstcandidates[j] = {}
-    for dstword in dstwords[len(dstposition)]:
+    for i, dstword in enumerate(dstwords[len(dstposition)]):
       wordmap = get_wordmap(positions, srcwords, dstword)
       if all(wordmap[sw] for sw in positions.iterkeys()):
-        dstcandidates[j][dstword] = wordmap
+        dstcandidates[j][i] = wordmap
   return dstmap, dstcandidates
 
 def print_len(name, graph):
@@ -103,6 +104,32 @@ def iterate(dstpositions, dstgraph, srcpositions, srcgraph):
       break
     print_len("src", srcgraph)
 
+def collect_pool(dstgraph, dstpositions):
+  pool = [set() for _ in xrange(len(dstgraph))]
+  for i, word in enumerate(dstpositions):
+    pool[len(word)].update(dstgraph[i].keys())
+  return pool
+
+def collect_src(srcgraph, dstgraph):
+  for sw, words in srcgraph.iteritems():
+    print >> sys.stderr, "Creating options for src word ", sw
+    for word, items in words.iteritems():
+      option = ["S%02d" % sw, "su%d" % word]
+      for word2 in words:
+        option.append("s%02d%s:%d" % (sw, dlx.encode(word2, 1000), int(word == word2)))
+      for pos, dstwords in items.iteritems():
+        disallow = set(dstgraph[pos].keys()) - dstwords
+        for d in disallow:
+          option.append("w%02d%s:0" % (pos, dlx.encode(d, 50000)))
+      yield " ".join(sorted(option))
+  for dw, words in dstgraph.iteritems():
+    print >> sys.stderr, "Creating options for dst word ", dw
+    for word in words:
+      option = ["W%02d" % dw]
+      for word2 in words:
+        option.append("w%02d%s:%d" % (dw, dlx.encode(word2, 50000), int(word == word2)))
+      yield " ".join(sorted(option))
+
 def main():
   nsrc, ndst = map(int, raw_input().split())
   dstpositions = [map(int, raw_input().split()) for _ in xrange(ndst)]
@@ -118,19 +145,11 @@ def main():
   dstmap, dstgraph = build_graph(nsrc, dstpositions, srcwords, dstwords)
   srcmap, srcgraph = build_src_graph(nsrc, dstgraph)
   iterate(dstmap, dstgraph, srcmap, srcgraph)
-  return
+  pool = collect_pool(dstgraph, dstpositions)
   options = []
-  options.extend(collect_src(nsrc, words1000, factors))
-  options.extend(collect_dst(dst, words, factors))
-  options.extend(collect_trigrams(dst, words))
-  options.extend(collect_initials(nsrc, words1000, words))
-  options.extend(collect_letters(dst, words))
-  #options.extend(collect_bigrams(dst, bigrams))
-  primary = collect_primary(options)
-  secondary = collect_secondary(options)
-  print "%s | %s" % (" ".join(primary), " ".join(secondary))
-  for option in options:
-    print option
+  options.extend(collect_src(srcgraph, dstgraph))
+  print >> sys.stderr, "Saving to disk"
+  print "\n".join(dlx.build_dlx(options))
 
 
 main()
