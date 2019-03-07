@@ -49,6 +49,12 @@ def build_graph(nsrc, dstpositions, srcwords, dstwords):
 def print_len(name, graph):
   print >> sys.stderr, name, [len(v) for v in graph.itervalues()]
 
+def count_len(graph):
+  return sum([len(v) for v in graph.itervalues()])
+
+def count_words(srcgraph, dstgraph):
+  return count_len(srcgraph) + count_len(dstgraph)
+
 def valid_word(word):
   return len(word) < 12 and all(w.islower() for w in word)
 
@@ -94,15 +100,14 @@ def clean_graph(dstgraph, srcgraph, dstpositions):
   return change
 
 def iterate(dstpositions, dstgraph, srcpositions, srcgraph):
-  print_len("dst", dstgraph)
-  print_len("src", srcgraph)
+  print >> sys.stderr, "Started with %d words" % count_words(srcgraph, dstgraph)
   while True:
     if not clean_graph(dstgraph, srcgraph, dstpositions):
       break
-    print_len("dst", dstgraph)
+    print >> sys.stderr, "Reduced to %d words" % count_words(srcgraph, dstgraph)
     if not clean_graph(srcgraph, dstgraph, srcpositions):
       break
-    print_len("src", srcgraph)
+    print >> sys.stderr, "Reduced to %d words" % count_words(srcgraph, dstgraph)
 
 def collect_pool(dstgraph, dstpositions):
   pool = [set() for _ in xrange(len(dstgraph))]
@@ -110,25 +115,83 @@ def collect_pool(dstgraph, dstpositions):
     pool[len(word)].update(dstgraph[i].keys())
   return pool
 
-def collect_src(srcgraph, dstgraph):
+def collect_src(srcgraph, srcwords, srcdegree):
+  print >> sys.stderr, "Creating options for src words"
   for sw, words in srcgraph.iteritems():
-    print >> sys.stderr, "Creating options for src word ", sw
-    for word, items in words.iteritems():
-      option = ["S%02d" % sw, "su%d" % word]
-      for word2 in words:
-        option.append("s%02d%s:%d" % (sw, dlx.encode(word2, 1000), int(word == word2)))
+    for srcword, items in words.iteritems():
+      option = ["S%d" % sw, "su%d" % srcword, "f%d:%d" % (sw, ord(srcwords[srcword][0]))]
+      option.append("s%d:%d" % (sw, srcword))
+      yield " ".join(option)
       for pos, dstwords in items.iteritems():
-        disallow = set(dstgraph[pos].keys()) - dstwords
-        for d in disallow:
-          option.append("w%02d%s:0" % (pos, dlx.encode(d, 50000)))
-      yield " ".join(sorted(option))
+        for dstword in dstwords:
+          option = ["S%d_%d" % (sw, pos)]
+          option.append("s%d:%d" % (sw, srcword))
+          option.append("d%d:%d" % (pos, dstword))
+          yield " ".join(option)
+
+def collect_dst(dstgraph, dstdegree):
+  print >> sys.stderr, "Creating options for dst words"
   for dw, words in dstgraph.iteritems():
-    print >> sys.stderr, "Creating options for dst word ", dw
-    for word in words:
-      option = ["W%02d" % dw]
-      for word2 in words:
-        option.append("w%02d%s:%d" % (dw, dlx.encode(word2, 50000), int(word == word2)))
-      yield " ".join(sorted(option))
+    for dstword, items in words.iteritems():
+      option = ["D%d" % dw]
+      option.append("d%d:%d" % (dw, dstword))
+      yield " ".join(option)
+      for pos, srcwords in items.iteritems():
+        for srcword in srcwords:
+          option = ["D%d_%d" % (dw, pos)]
+          option.append("d%d:%d" % (dw, dstword))
+          option.append("s%d:%d" % (pos, srcword))
+          yield " ".join(option)
+
+def collect_names(nsrc, nnames, allnames):
+  print >> sys.stderr, "Creating options for names"
+  minlen = min(allnames)
+  maxlen = max(allnames)
+  for i in xrange(nnames):
+    print >> sys.stderr, "Creating options for name ", i
+    start = minlen * i
+    end = nsrc - minlen * (nnames - i - 1)
+    for pos in xrange(start, end):
+      for namelen, names in allnames.iteritems():
+        if pos + namelen > end:
+          continue
+        if i == 0 and pos != 0:
+          continue
+        if i + 1 == nnames and pos + namelen != nsrc:
+          continue
+        for name in names:
+          option = ["F%d" % i, "fb%d:%d" % (i, pos), "fb%d:%d" % (i + 1, pos + namelen)]
+          for j, c in enumerate(name):
+            option.append("f%d:%d" % (pos + j, ord(c)))
+          yield " ".join(option)
+
+def add_links(graph, name, links):
+  for src, items in graph.iteritems():
+    for word, dstmap in items.iteritems():
+      for dst in dstmap:
+        links.add(name % (src, dst))
+
+def write_dot(srcgraph, dstgraph):
+  f = open("anacrostic.dot", "wt")
+  f.write("graph anacrostic {\n");
+  links = set()
+  add_links(srcgraph, "S%d -- D%d;\n", links)
+  for link in links:
+    f.write(link)
+  f.write("}\n")
+  f.close()
+
+def find_degree(graph):
+  edges = {}
+  for src, items in graph.iteritems():
+    for word, dstmap in items.iteritems():
+      for dst in dstmap:
+        edges.setdefault(src, set()).add(dst)
+  return {k:len(v) for k,v in edges.iteritems()}
+
+def print_degree(degrees):
+  for k,v in sorted(degrees.iteritems(), key=lambda (k,v):v, reverse=True):
+    print k,v
 
 def main():
   nsrc, ndst = map(int, raw_input().split())
@@ -142,12 +205,24 @@ def main():
   for i in xrange(2, 12):
     words = open("words/words%d-from-OSPD4" % i).read().split()
     dstwords.append(words[:len(words) * 4 / 10])
+  names = {}
+  for line in open("words/names.txt"):
+    name = line.strip()
+    if len(name) > 9:
+      continue
+    if len(name) in [2,3,4,5]:
+      continue
+    names.setdefault(len(name), []).append(name)
   dstmap, dstgraph = build_graph(nsrc, dstpositions, srcwords, dstwords)
   srcmap, srcgraph = build_src_graph(nsrc, dstgraph)
+  srcdegree = find_degree(srcgraph)
+  dstdegree = find_degree(dstgraph)
   iterate(dstmap, dstgraph, srcmap, srcgraph)
   pool = collect_pool(dstgraph, dstpositions)
   options = []
-  options.extend(collect_src(srcgraph, dstgraph))
+  options.extend(collect_src(srcgraph, srcwords, srcdegree))
+  options.extend(collect_dst(dstgraph, dstdegree))
+  #options.extend(collect_names(nsrc, 6, names))
   print >> sys.stderr, "Saving to disk"
   print "\n".join(dlx.build_dlx(options))
 
