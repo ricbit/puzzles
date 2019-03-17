@@ -1,11 +1,17 @@
 import string
 import math
-import sys
+import re
+import itertools
 
-printable = "".join(x for x in string.printable if x not in ":|" and ord(x) > 32)
-encodebase = len(printable)
+try:
+  range = xrange
+except NameError:
+  pass
 
-def to_base(n, base, size):
+PRINTABLE = "".join(x for x in string.printable if x not in ":|" and ord(x) > 32)
+ENCODEBASE = len(PRINTABLE)
+
+def _to_base(n, base, size):
   ans = [0] * size
   pos = size - 1
   while n:
@@ -20,13 +26,13 @@ def encode(n, limit, basecache={}, ncache={}):
   if limit in basecache:
     size = basecache[limit]
   else:
-    size = int(math.floor(math.log(limit, encodebase))) + 1
+    size = int(math.floor(math.log(limit, ENCODEBASE))) + 1
     basecache[limit] = size
-  ans = "".join(printable[x] for x in to_base(n, encodebase, size))
+  ans = "".join(PRINTABLE[x] for x in _to_base(n, ENCODEBASE, size))
   ncache[(n, limit)] = ans
   return ans
 
-def collect_primary(options):
+def _collect_primary(options):
   items = set()
   for option in options:
     for item in option.split():
@@ -34,7 +40,7 @@ def collect_primary(options):
         items.add(item)
   return items
 
-def collect_secondary(options):
+def _collect_secondary(options):
   items = set()
   for option in options:
     for item in option.split():
@@ -42,9 +48,28 @@ def collect_secondary(options):
         items.add(item.split(":")[0])
   return items
 
-def build_dlx(options):
-  primary = collect_primary(options)
-  secondary = collect_secondary(options)
-  yield "%s | %s" % (" ".join(primary), " ".join(secondary))
+def build_dlx(options, primary=_collect_primary, secondary=_collect_secondary):
+  poptions = primary(options)
+  soptions = secondary(options)
+  if soptions:
+    yield "%s | %s" % (" ".join(poptions), " ".join(soptions))
+  else:
+    yield "%s" % (" ".join(poptions))
   for option in options:
     yield option
+
+def parse_solutions(lines):
+  solution = []
+  for line in lines:
+    if re.match(r"^\d+:$", line):
+      if solution:
+        yield solution
+        solution = []
+    if re.match(r"^\s.*of \d+\)$", line) is not None:
+      solution.append(line)
+  if solution:
+    yield solution
+
+def iter_grid(height, width):
+  for j, i in itertools.product(range(height), range(width)):
+    yield (j, i)

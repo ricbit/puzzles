@@ -20,7 +20,7 @@ clear :
 	g++ --std=c++17 $< -o $@ $(OPT)
 
 %.mip : %.mip.cc easyscip/easyscip.h
-	g++ -std=c++17 $< -o $@ $(OPT) -lm -lscip
+	g++ -std=c++17 -Iscip/scip/src $< -o $@ $(OPT) -Lscip/build/lib -lm -lscip
 
 tidy:
 	clang-tidy -checks='bugprone-*,clang-analyzer-*,misc-*,performance-*,portability-*,readability-*' snail.human.cc -- -std=c++17 -stdlib=libc++

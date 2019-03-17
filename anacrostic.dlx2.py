@@ -132,8 +132,9 @@ def collect_src(srcgraph, srcwords, srcdegree):
 def collect_dst(dstgraph, dstdegree):
   print >> sys.stderr, "Creating options for dst words"
   for dw, words in dstgraph.iteritems():
+    sharp = "#" if dstdegree[dw] == 1 and len(words) < 20 else ""
     for dstword, items in words.iteritems():
-      option = ["D%d" % dw]
+      option = ["%sD%d" % (sharp, dw)]
       option.append("d%d:%d" % (dw, dstword))
       yield " ".join(option)
       for pos, srcwords in items.iteritems():
@@ -191,7 +192,44 @@ def find_degree(graph):
 
 def print_degree(degrees):
   for k,v in sorted(degrees.iteritems(), key=lambda (k,v):v, reverse=True):
-    print k,v
+    print >> sys.stderr, k,v
+
+def find_fanout(srcgraph, srcmap):
+  fanout = {}
+  for k, v in srcmap.iteritems():
+    fanout[k] = set()
+    for i in xrange(2, 1 + len(v)):
+      fanout[k].update(tuple(x) for x in itertools.combinations(sorted(v), i))
+  cycles = {}
+  for a, b in itertools.combinations(srcmap.keys(), 2):
+    inter = fanout[a].intersection(fanout[b])
+    if inter:
+      maxlen = max(len(x) for x in inter)
+      cycles[(a,b)] = [x for x in inter if len(x) == maxlen]
+  return cycles
+
+def invert(srcfanout):
+  for (a,b), fanouts in srcfanout.iteritems():
+    yield (a,b), fanouts
+    yield (b,a), fanouts
+
+def discard_pairs(srcgraph, srcfanout):
+  print "discarding"
+  for (a, b), fanouts in invert(srcfanout):
+    for fanout in fanouts:
+      for worda, itemsa in srcgraph[a].iteritems():
+        found = []
+        count = 0
+        for wordb, itemsb in srcgraph[b].iteritems():
+          aset = [itemsa[k] for k in fanout]
+          bset = [itemsb[k] for k in fanout]
+          inter = [sa.intersection(sb) for sa,sb in zip(aset, bset)]
+          if any(len(x) == 0 for x in inter):
+            # print worda, wordb, inter
+            count += 1
+          else:
+            found.append(wordb)
+        print a, worda, count, len(found)
 
 def main():
   nsrc, ndst = map(int, raw_input().split())
@@ -217,6 +255,12 @@ def main():
   srcmap, srcgraph = build_src_graph(nsrc, dstgraph)
   srcdegree = find_degree(srcgraph)
   dstdegree = find_degree(dstgraph)
+  srcfanout = find_fanout(srcgraph, srcmap)
+  dstfanout = find_fanout(dstgraph, dstmap)
+  discard_pairs(srcgraph, srcfanout)
+  return 
+  #print_degree(srcdegree)
+  #print_degree(dstdegree)
   iterate(dstmap, dstgraph, srcmap, srcgraph)
   pool = collect_pool(dstgraph, dstpositions)
   options = []

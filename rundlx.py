@@ -20,6 +20,7 @@ def main():
   parser.add_argument("--pre", help="Run the preprocessor", nargs=1,
       choices=["pipe", "stop"])
   parser.add_argument("--verbose", help="Verbose output", action="store_true")
+  parser.add_argument("--random", help="Use random choices when branching", nargs="?", const=1, type=int, default=None)
   parser.add_argument("--stop", help="Stop at the nth solution", nargs="?",
       default=None, type=int, metavar="n")
   parser.add_argument("template", help="File template")
@@ -39,6 +40,7 @@ def main():
   else:
     executable = "dlx2"
   verbose = "v391" if args.verbose else ""
+  random = "s%d" % args.random if args.random else ""
   if args.fast:
     ticks = "d100000000"
   elif args.faster:
@@ -49,17 +51,16 @@ def main():
   if args.pre and args.pre[0] == "stop":
     commandline = (
         '(time /home/ricbit/work/knuth/dlx/dlx-pre < %s.dlx) > '
-        '%s.pre.dlx ' % #| grep -v -P "^(\s(?!after)|\d+:|Level|L\d+)"' %
-        (args.template, args.template))
+        '%s.pre.dlx ' % (args.template, args.template))
   else:
     if args.pre and args.pre[0] == "pipe":
       commandpipe = (
           '/home/ricbit/work/knuth/dlx/dlx-pre < %s.dlx | '
-          '/home/ricbit/work/knuth/dlx/%s m1 %s %s %s ' % 
-          (args.template, executable, ticks, stop, verbose))
+          '/home/ricbit/work/knuth/dlx/%s m1 %s %s %s %s ' % 
+          (args.template, executable, ticks, stop, verbose, random))
     else:
-      commandpipe = ('/home/ricbit/work/knuth/dlx/%s m1 %s %s %s < %s.dlx ' %
-          (executable, ticks, stop, verbose, args.template))
+      commandpipe = ('/home/ricbit/work/knuth/dlx/%s m1 %s %s %s %s < %s.dlx ' %
+          (executable, ticks, stop, verbose, random, args.template))
     commandline = (
         '(time (%s)) |& tee %s.out.txt | grep -v -P "^(\s(?!after)|\d+:|Level|L\d+)"' %
         (commandpipe, args.template))
