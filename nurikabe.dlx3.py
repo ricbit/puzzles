@@ -57,9 +57,10 @@ class Nurikabe:
             option.append("t%s%s:%s" % (self.encodegroup(g), ep, tree))
           yield " ".join(option)
         else:
+          mindist = abs(pj - gj) + abs(pi - gi)
           for nj, ni in self.iter_neigh(pj, pi, gj, gi, gsize):
             en = self.encodepos(nj, ni)
-            for d in range(1, gsize):
+            for d in range(mindist, gsize):
               option = baseoption.copy()
               for g in range(len(self.groups)):
                 tree = self.encodetree(d) if g == gn else "0"
