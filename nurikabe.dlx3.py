@@ -7,12 +7,13 @@ class Nurikabe:
     self.h = h
     self.w = w
     self.groups = groups
+    self.seeds = {(gj, gi): n for n, (gj, gi, _) in enumerate(groups)}
 
   def iter_group(self, gj, gi, gsize):
     for j, i in itertools.product(range(-gsize, gsize + 1), repeat=2):
       if 0 <= gj + j < self.h and 0 <= gi + i < self.w:
         dist = abs(j) + abs(i)
-        if dist <= gsize:
+        if dist < gsize:
           yield gj + j, gi + i, dist 
 
   def encodepos(self, j, i):
@@ -35,11 +36,14 @@ class Nurikabe:
       nj = pj + jj
       ni = pi + ii
       if abs(nj - gj) + abs(ni - gi) <= gsize:
-        yield nj, ni
+        if 0 <= nj < self.h and 0 <= ni < self.w:
+          yield nj, ni
 
   def collect_groups(self):
     for gn, (gj, gi, gsize) in enumerate(self.groups):
       for pj, pi, dist in self.iter_group(gj, gi, gsize):
+        if self.seeds.get((pj, pi), gn) != gn:
+          continue
         eg = self.encodegroup(gn)
         ep = self.encodepos(pj, pi)
         baseoption = ["G%s" % eg]
@@ -47,22 +51,32 @@ class Nurikabe:
         baseoption.append("g%s:%s" % (ep, eg))
         if pj == gj and pi == gi:
           option = baseoption.copy()
-          option.append("t%s%s:%s" % (eg, ep, self.encodetree(0)))
+          option.append("S%s" % eg)
+          for g in range(len(self.groups)):
+            tree = self.encodetree(0) if g == gn else "0"
+            option.append("t%s%s:%s" % (self.encodegroup(g), ep, tree))
           yield " ".join(option)
         else:
           for nj, ni in self.iter_neigh(pj, pi, gj, gi, gsize):
             en = self.encodepos(nj, ni)
-            for d in range(2, gsize):
+            for d in range(1, gsize):
               option = baseoption.copy()
-              option.append("t%s%s:%s" % (eg, ep, self.encodetree(d)))
+              for g in range(len(self.groups)):
+                tree = self.encodetree(d) if g == gn else "0"
+                option.append("t%s%s:%s" % (self.encodegroup(g), ep, tree))
               option.append("t%s%s:%s" % (eg, en, self.encodetree(d - 1)))
+              option.append("u%s%s" % (eg, ep))
               yield " ".join(option)
 
   def collect_empty(self):
     for j, i in itertools.product(range(self.h), range(self.w)):
-      option = ["E"]
-      option.append("g%s:0" % self.encodepos(j, i))
-      yield " ".join(option)
+      if (j, i) not in self.seeds:
+        option = ["E"]
+        pos = self.encodepos(j, i)
+        option.append("g%s:0" % pos)
+        for gn in range(len(self.groups)):
+          option.append("t%s%s:0" % (self.encodegroup(gn), pos))
+        yield " ".join(option)
   
   def empty_size(self):
     empty = self.w * self.h
