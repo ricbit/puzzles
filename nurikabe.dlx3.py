@@ -2,6 +2,7 @@ import dlx
 import itertools
 import sys
 import collections
+import pprint
 
 class Nurikabe:
   def __init__(self, h, w, groups):
@@ -12,14 +13,27 @@ class Nurikabe:
     self.seeds = {(gj, gi): n for n, (gj, gi, _) in enumerate(groups)}
     self.empty_size = self.w * self.h - sum(size for _, _, size in self.groups)
     self.forbidden = [self.build_forbidden(g) for g in range(len(groups))]
-    self.dmap = {i: self.build_min_distance_map(i) for i in range(len(groups))}
+    self.minmap = [self.build_min_distance_map(i) for i in range(len(groups))]
+    self.maxmap = [self.build_max_distance_map(i) for i in range(len(groups))]
+    self.minmax = self.build_minmax()
+
+  def print_minmax(self):
+    for g, minmax in enumerate(self.minmax):
+      print(g, file=sys.stderr)
+      print("%s\n\n" % self.encode_matrix(minmax, " ", lambda x:
+      self.encodetree(x[0]) + self.encodetree(x[1])), file=sys.stderr)
+
+  def print_gmin(self):
+    for gmin, gmax in zip(self.minmap, self.maxmap):
+      print ("min\n%s" % "\n".join("".join(self.encodetree(k) for k in line) for line in gmin), file=sys.stderr)
+      print ("max\n%s" % "\n".join("".join(self.encodetree(k) for k in line) for line in gmax), file=sys.stderr)
 
   def iter_group(self, gj, gi, gsize):
     for j, i in itertools.product(range(-gsize, gsize + 1), repeat=2):
       if 0 <= gj + j < self.h and 0 <= gi + i < self.w:
         dist = abs(j) + abs(i)
         if dist < gsize:
-          yield gj + j, gi + i, dist 
+          yield gj + j, gi + i, dist
 
   def iter_neigh(self, pj, pi, gj, gi, gsize):
     disp = [x for x in itertools.product(range(-1, 2), repeat=2) if x.count(0) == 1]
@@ -40,7 +54,7 @@ class Nurikabe:
         forbidden[gj][gi] = True
         for nj, ni in self.iter_neigh(gj, gi, gj, gi, gsize):
           forbidden[nj][ni] = True
-    return forbidden          
+    return forbidden
 
   def build_min_distance_map(self, group):
     gj, gi, gsize = self.groups[group]
@@ -54,9 +68,39 @@ class Nurikabe:
           value[nj][ni] = pv + 1
           if pv + 1 < gsize:
             stack.append((nj, ni, pv + 1))
-    print(group, file=sys.stderr)
-    print("\n".join("".join(self.encodegroup(c) for c in line) for line in value), file=sys.stderr)
     return value
+
+  def build_max_distance_map(self, group):
+    gj, gi, gsize = self.groups[group]
+    value = self.build_matrix(self.h, self.w, gsize)
+    prevstack = [(gj, gi, 0)]
+    nextstack = []
+    value[gj][gi] = 0
+    while prevstack:
+      for pj, pi, pv in prevstack:
+        for nj, ni in self.iter_neigh(pj, pi, gj, gi, gsize):
+          if nj == gj and ni == gi:
+            continue
+          value[nj][ni] = pv + 1
+          if not self.forbidden[group][nj][ni] and pv + 1 < gsize:
+            nextstack.append((nj, ni, pv + 1))
+      prevstack = nextstack
+      nextstack = []
+    return value
+
+  def build_minmax(self):
+    minmax = [{} for _ in self.groups]
+    for g, (gmin, gmax) in enumerate(zip(self.minmap, self.maxmap)):
+      for j, i in dlx.iter_grid(self.h, self.w):
+        if gmin[j][i] >= 0:
+          minmax[g][(j, i)] = (gmin[j][i], gmax[j][i])
+    return minmax
+
+  def encode_matrix(self, mat, spacer, encoder):
+    ans = []
+    for j in range(self.h):
+      ans.append(spacer.join(encoder(mat[(j, i)]) for i in range(self.w)))
+    return "\n".join(ans)
 
   def encodepos(self, j, i):
     ej = "%02d" % j
@@ -78,7 +122,7 @@ class Nurikabe:
   def collect_groups(self):
     for gn, (gj, gi, gsize) in enumerate(self.groups):
       for pj, pi, dist in self.iter_group(gj, gi, gsize):
-        if self.seeds.get((pj, pi), gn) != gn:
+        if (pj, pi) not in self.minmax[gn]:
           continue
         eg = self.encodegroup(gn)
         ep = self.encodepos(pj, pi)
@@ -95,17 +139,18 @@ class Nurikabe:
             option.append("t%s%s:%s" % (self.encodegroup(g), ep, tree))
           yield " ".join(option)
         else:
-          mindist = abs(pj - gj) + abs(pi - gi)
+          mindist, maxdist = self.minmax[gn][(pj, pi)]
           for nj, ni in self.iter_neigh(pj, pi, gj, gi, gsize):
             en = self.encodepos(nj, ni)
-            for d in range(mindist, gsize):
-              option = baseoption.copy()
-              for g in range(len(self.groups)):
-                tree = self.encodetree(d) if g == gn else "0"
-                option.append("t%s%s:%s" % (self.encodegroup(g), ep, tree))
-              option.append("t%s%s:%s" % (eg, en, self.encodetree(d - 1)))
-              option.append("u%s%s" % (eg, ep))
-              yield " ".join(option)
+            for d in range(mindist, maxdist + 1):
+              if True:
+                option = baseoption.copy()
+                for g in range(len(self.groups)):
+                  tree = self.encodetree(d) if g == gn else "0"
+                  option.append("t%s%s:%s" % (self.encodegroup(g), ep, tree))
+                option.append("t%s%s:%s" % (eg, en, self.encodetree(d - 1)))
+                option.append("u%s%s" % (eg, ep))
+                yield " ".join(option)
 
   def collect_empty(self):
     for j, i in itertools.product(range(self.h), range(self.w)):
@@ -118,7 +163,7 @@ class Nurikabe:
         for gn in range(len(self.groups)):
           option.append("t%s%s:0" % (self.encodegroup(gn), pos))
         yield " ".join(option)
- 
+
   def collect_squares(self):
     for j, i in dlx.iter_grid(self.h - 1, self.w - 1):
       base = ["S%s" % self.encodepos(j, i)]
