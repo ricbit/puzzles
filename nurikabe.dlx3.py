@@ -135,19 +135,24 @@ class Nurikabe:
           option = baseoption.copy()
           option.append("S%s" % eg)
           for g in range(len(self.groups)):
-            tree = self.encodetree(0) if g == gn else "0"
-            option.append("t%s%s:%s" % (self.encodegroup(g), ep, tree))
+            if (pj, pi) in self.minmax[g]:
+              tree = self.encodetree(0) if g == gn else "0"
+              option.append("t%s%s:%s" % (self.encodegroup(g), ep, tree))
           yield " ".join(option)
         else:
           mindist, maxdist = self.minmax[gn][(pj, pi)]
           for nj, ni in self.iter_neigh(pj, pi, gj, gi, gsize):
+            if (nj, ni) not in self.minmax[gn]:
+              continue
+            nmin, nmax = self.minmax[gn][(nj, ni)]
             en = self.encodepos(nj, ni)
             for d in range(mindist, maxdist + 1):
-              if True:
+              if nmin <= d - 1 <= nmax:
                 option = baseoption.copy()
                 for g in range(len(self.groups)):
-                  tree = self.encodetree(d) if g == gn else "0"
-                  option.append("t%s%s:%s" % (self.encodegroup(g), ep, tree))
+                  if (pj, pi) in self.minmax[g]:
+                    tree = self.encodetree(d) if g == gn else "0"
+                    option.append("t%s%s:%s" % (self.encodegroup(g), ep, tree))
                 option.append("t%s%s:%s" % (eg, en, self.encodetree(d - 1)))
                 option.append("u%s%s" % (eg, ep))
                 yield " ".join(option)
@@ -161,7 +166,8 @@ class Nurikabe:
         option.append("p%s:0" % pos)
         option.append("P%s" % pos)
         for gn in range(len(self.groups)):
-          option.append("t%s%s:0" % (self.encodegroup(gn), pos))
+          if (j, i) in self.minmax[gn]:
+            option.append("t%s%s:0" % (self.encodegroup(gn), pos))
         yield " ".join(option)
 
   def collect_squares(self):
