@@ -180,31 +180,25 @@ class Nurikabe:
           option.append("p%s:%d" % (self.encodepos(j + jj, i + ii), bit))
         yield " ".join(option)
 
+  def collect_direction(self, h, w, direction, move):
+    for j, i in dlx.iter_grid(h, w):
+      ep = self.encodepos(j, i)
+      base = ["%s%s" % (direction, ep)]
+      c = [self.candidates[move(j, i, k)] for k in range(2)]
+      for g1, g2 in itertools.product(*c):
+        if g1 == -1 or g2 == -1 or g1 == g2:
+          option = base.copy()
+          option.append("g%s:%s" % (ep, self.encodegroup(g1)))
+          option.append("g%s:%s" % (self.encodepos(*move(j, i, 1)), self.encodegroup(g2)))
+          option.append("p%s:%s" % (ep, int(g1 >= 0)))
+          option.append("p%s:%s" % (self.encodepos(*move(j, i, 1)), int(g2 >= 0)))
+          yield " ".join(option)
+
   def collect_pairs(self):
-    for j, i in dlx.iter_grid(self.h, self.w - 1):
-      ep = self.encodepos(j, i)
-      base = ["H%s" % ep]
-      c = [self.candidates[(j, i + k)] for k in range(2)]
-      for g1, g2 in itertools.product(*c):
-        if g1 == -1 or g2 == -1 or g1 == g2:
-          option = base.copy()
-          option.append("g%s:%s" % (ep, self.encodegroup(g1)))
-          option.append("g%s:%s" % (self.encodepos(j, i + 1), self.encodegroup(g2)))
-          option.append("p%s:%s" % (ep, int(g1 >= 0)))
-          option.append("p%s:%s" % (self.encodepos(j, i + 1), int(g2 >= 0)))
-          yield " ".join(option)
-    for j, i in dlx.iter_grid(self.h - 1, self.w):
-      ep = self.encodepos(j, i)
-      base = ["V%s" % ep]
-      c = [self.candidates[(j + k, i)] for k in range(2)]
-      for g1, g2 in itertools.product(*c):
-        if g1 == -1 or g2 == -1 or g1 == g2:
-          option = base.copy()
-          option.append("g%s:%s" % (ep, self.encodegroup(g1)))
-          option.append("g%s:%s" % (self.encodepos(j + 1, i), self.encodegroup(g2)))
-          option.append("p%s:%s" % (ep, int(g1 >= 0)))
-          option.append("p%s:%s" % (self.encodepos(j + 1, i), int(g2 >= 0)))
-          yield " ".join(option)
+    yield from self.collect_direction(
+      self.h, self.w - 1, "H", lambda j, i, k: (j, i + k))
+    yield from self.collect_direction(
+      self.h - 1, self.w, "V", lambda j, i, k: (j + k, i))
 
   def collect_primary(self, options):
     items = set()
