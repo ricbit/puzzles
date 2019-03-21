@@ -13,21 +13,17 @@ class Nurikabe:
     self.seeds = {(gj, gi): n for n, (gj, gi, _) in enumerate(groups)}
     self.empty_size = self.w * self.h - sum(size for _, _, size in self.groups)
     self.minmax = self.build_minmax()
+    self.treesize = [self.build_treesize(i) for i in range(len(groups))]
     self.print_minmax()
 
   def print_minmax(self):
     for g, minmax in enumerate(self.minmax):
-      print(g, file=sys.stderr)
+      print(g, self.encodegroup(g), self.groups[g], self.treesize[g], file=sys.stderr)
       print("%s\n\n" % self.encode_matrix(minmax, " ", lambda x:
-        self.encodetree(x[0]) + self.encodetree(x[1])), file=sys.stderr)
-
-  def print_gmin(self):
-    for gmin, gmax in zip(self.minmap, self.maxmap):
-      print ("min\n%s" % "\n".join("".join(self.encodetree(k) for k in line) for line in gmin), file=sys.stderr)
-      print ("max\n%s" % "\n".join("".join(self.encodetree(k) for k in line) for line in gmax), file=sys.stderr)
+        self.encodetree(x[1]) + self.encodetree(x[0])), file=sys.stderr)
 
   def iter_group(self, gj, gi, gsize):
-    for j, i in itertools.product(range(-gsize, gsize + 1), repeat=2):
+    for j, i in itertools.product(range(1 - gsize, gsize), repeat=2):
       if 0 <= gj + j < self.h and 0 <= gi + i < self.w:
         dist = abs(j) + abs(i)
         if dist < gsize:
@@ -38,7 +34,7 @@ class Nurikabe:
     for jj, ii in disp:
       nj = pj + jj
       ni = pi + ii
-      if abs(nj - gj) + abs(ni - gi) <= gsize:
+      if abs(nj - gj) + abs(ni - gi) < gsize:
         if 0 <= nj < self.h and 0 <= ni < self.w:
           yield nj, ni
 
@@ -64,7 +60,7 @@ class Nurikabe:
       for nj, ni in self.iter_neigh(pj, pi, gj, gi, gsize):
         if value[nj][ni] < 0 and not forbidden[group][nj][ni]:
           value[nj][ni] = pv + 1
-          if pv + 1 < gsize:
+          if pv + 1 < gsize - 1:
             stack.append((nj, ni, pv + 1))
     return value
 
@@ -80,7 +76,7 @@ class Nurikabe:
           if nj == gj and ni == gi:
             continue
           value[nj][ni] = pv + 1
-          if not forbidden[group][nj][ni] and pv + 1 < gsize:
+          if not forbidden[group][nj][ni] and pv + 1 < gsize - 1:
             nextstack.append((nj, ni, pv + 1))
       prevstack = nextstack
       nextstack = []
@@ -97,10 +93,28 @@ class Nurikabe:
           minmax[g][(j, i)] = (gmin[j][i], gmax[j][i])
     return minmax
 
+  def build_treesize(self, gn):
+    gj, gi, gsize = self.groups[gn]
+    size = collections.Counter()
+    used = gsize
+    for j, i in dlx.iter_grid(self.h, self.w):
+      if (j, i) in self.minmax[gn]:
+        gmin, gmax = self.minmax[gn][(j, i)]
+        for d in range(gmin, gmax + 1):
+          size[d] += 1
+    treesize = []
+    for d in range(0, gsize):
+      if used > 0:
+        treesize.append((1, size[d]))
+        used -= size[d]
+      else:
+        treesize.append((0, size[d]))
+    return treesize
+
   def encode_matrix(self, mat, spacer, encoder):
     ans = []
-    for j in range(self.h):
-      ans.append(spacer.join(encoder(mat.get((j, i), (-1,-1))) for i in range(self.w)))
+    for j in range(self.w):
+      ans.append(spacer.join(encoder(mat.get((i, j), (-1,-1))) for i in range(self.h)))
     return "\n".join(ans)
 
   def encodepos(self, j, i):
@@ -110,7 +124,7 @@ class Nurikabe:
 
   def encodegroup(self, gn):
     if gn >= 0:
-      return chr(ord('a') + gn)
+      return chr(ord('A') + gn)
     else:
       return "0"
 
@@ -118,7 +132,7 @@ class Nurikabe:
     return chr(ord('a') + depth)
 
   def decodegroup(self, gs):
-    return ord(gs) - ord('a')
+    return ord(gs) - ord('A')
 
   def collect_groups(self):
     for gn, (gj, gi, gsize) in enumerate(self.groups):
@@ -135,6 +149,7 @@ class Nurikabe:
         if pj == gj and pi == gi:
           option = baseoption.copy()
           option.append("S%s" % eg)
+          option.append("T%s%d" % (eg, 0))
           for g in range(len(self.groups)):
             if (pj, pi) in self.minmax[g]:
               tree = self.encodetree(0) if g == gn else "0"
@@ -150,6 +165,7 @@ class Nurikabe:
             for d in range(mindist, maxdist + 1):
               if nmin <= d - 1 <= nmax:
                 option = baseoption.copy()
+                option.append("T%s%d" % (eg, d))
                 for g in range(len(self.groups)):
                   if (pj, pi) in self.minmax[g]:
                     tree = self.encodetree(d) if g == gn else "0"
@@ -225,12 +241,16 @@ class Nurikabe:
     items = set()
     empty = self.empty_size
     for option in options:
-      for item in option.split():
+      for item in option.split(" "):
         if item.startswith("G"):
           gn = self.decodegroup(item[1:])
           items.add("%d|%s" % (self.groups[gn][2], item))
         elif item.startswith("E"):
           items.add("%d|%s" % (empty, item))
+        elif item.startswith("T"):
+          gn = self.decodegroup(item[1])
+          size = self.treesize[gn][int(item[2:])]
+          items.add("%d:%d|%s" % (size[0], size[1], item))
         elif item[0].isupper():
           items.add(item)
     return items
