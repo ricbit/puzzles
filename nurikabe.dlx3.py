@@ -38,6 +38,12 @@ class Nurikabe:
         if 0 <= nj < self.h and 0 <= ni < self.w:
           yield nj, ni
 
+  def forced_fill(self, j, i):
+    return (j, i) in self.seeds
+
+  def forced_empty(self, j, i):
+    return all((j, i) not in minmax for minmax in self.minmax)
+
   def build_matrix(self, h, w, default):
     return [[default] * w for _ in range(h)]
 
@@ -175,7 +181,7 @@ class Nurikabe:
 
   def collect_empty(self):
     for j, i in itertools.product(range(self.h), range(self.w)):
-      if (j, i) not in self.seeds:
+      if not self.forced_fill(j, i):
         option = ["E"]
         pos = self.encodepos(j, i)
         option.append("g%s:0" % pos)
@@ -185,6 +191,11 @@ class Nurikabe:
           if (j, i) in self.minmax[gn]:
             option.append("t%s%s:0" % (self.encodegroup(gn), pos))
         yield " ".join(option)
+
+  def collect_empty_pairs(self):
+    for j, i in itertools.product(range(self.h), range(self.w)):
+      if not self.forced_fill(j, i):
+        pos = self.encodepos(j, i)
         yield "D%s p%s:1" % (pos, pos)
         for nj, ni in self.iter_neigh(j, i, j, i, 2):
           if (nj, ni) not in self.seeds:
@@ -195,7 +206,7 @@ class Nurikabe:
 
   def collect_filled(self):
     for j, i in itertools.product(range(self.h), range(self.w)):
-      if any((j, i) in self.minmax[g] for g in range(len(self.groups))):
+      if not self.forced_empty(j, i):
         if self.groups[self.seeds.get((j, i), 0)][2] != 1:
           pos = self.encodepos(j, i)
           yield "F%s p%s:0" % (pos, pos)
@@ -216,9 +227,9 @@ class Nurikabe:
           bit = int((bits & (1 << n)) > 0)
           option.append("p%s:%d" % (self.encodepos(j + jj, i + ii), bit))
           pos = j + jj, i + ii
-          if pos in self.seeds and bit == 0:
+          if self.forced_fill(*pos) and bit == 0:
             impossible = True
-          if all(pos not in minmax for minmax in self.minmax) and bit == 1:
+          if self.forced_empty(*pos) and bit == 1:
             impossible = True
         if not impossible:
           yield " ".join(option)
@@ -268,6 +279,7 @@ def main():
   solver = Nurikabe(h, w, groups)
   options = []
   options.extend(solver.collect_groups())
+  options.extend(solver.collect_empty_pairs())
   options.extend(solver.collect_empty())
   options.extend(solver.collect_filled())
   options.extend(solver.collect_squares())
