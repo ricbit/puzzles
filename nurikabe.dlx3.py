@@ -207,7 +207,7 @@ class Nurikabe:
         pos = self.encodepos(j, i)
         yield "D%s p%s:1" % (pos, pos)
         for nj, ni in self.iter_neigh(j, i, j, i, 2):
-          if (nj, ni) not in self.seeds:
+          if not self.forced_fill(nj, ni):
             option = ["D%s" % pos]
             option.append("p%s:0" % pos)
             option.append("p%s:0" % self.encodepos(nj, ni))
@@ -220,7 +220,7 @@ class Nurikabe:
           pos = self.encodepos(j, i)
           yield "F%s p%s:0" % (pos, pos)
           for nj, ni in self.iter_neigh(j, i, j, i, 2):
-            if any((nj, ni) in self.minmax[g] for g in range(len(self.groups))):
+            if not self.forced_empty(nj, ni):
               option = ["F%s" % pos]
               option.append("p%s:1" % pos)
               option.append("p%s:1" % self.encodepos(nj, ni))
@@ -251,8 +251,12 @@ class Nurikabe:
       for g1, g2 in itertools.product(*c):
         if g1 == -1 or g2 == -1 or g1 == g2:
           option = base.copy()
-          option.append("g%s:%s" % (ep, self.encodegroup(g1)))
-          option.append("g%s:%s" % (self.encodepos(*move(j, i, 1)), self.encodegroup(g2)))
+          eg1 = self.encodegroup(g1)
+          eg2 = self.encodegroup(g2)
+          if g1 == g2 and g1 != -1:
+            option.append("EDGE%s" % eg1)
+          option.append("g%s:%s" % (ep, eg1))
+          option.append("g%s:%s" % (self.encodepos(*move(j, i, 1)), eg2))
           option.append("p%s:%s" % (ep, int(g1 >= 0)))
           option.append("p%s:%s" % (self.encodepos(*move(j, i, 1)), int(g2 >= 0)))
           yield " ".join(option)
@@ -271,6 +275,10 @@ class Nurikabe:
         if item.startswith("G"):
           gn = self.decodegroup(item[1:])
           items.add("%d|%s" % (self.groups[gn][2], item))
+        elif item.startswith("EDGE"):
+          gn = self.decodegroup(item[4])
+          _, _, gsize = self.groups[gn]
+          items.add("%d:%d|%s" % (gsize - 1, gsize * gsize, item))
         elif item.startswith("E"):
           items.add("%d|%s" % (empty, item))
         elif item.startswith("T"):
