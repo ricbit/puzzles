@@ -148,7 +148,6 @@ class Nurikabe:
         baseoption.append("g%s:%s" % (ep, eg))
         if pj == gj and pi == gi:
           option = baseoption.copy()
-          option.append("S%s" % eg)
           option.append("T%s%d" % (eg, 0))
           for g in range(len(self.groups)):
             if (pj, pi) in self.minmax[g]:
@@ -212,10 +211,17 @@ class Nurikabe:
       base = ["S%s" % self.encodepos(j, i)]
       for bits in range(1, 16):
         option = base.copy()
+        impossible = False
         for n, (jj, ii) in enumerate(itertools.product([0, 1], repeat=2)):
           bit = int((bits & (1 << n)) > 0)
           option.append("p%s:%d" % (self.encodepos(j + jj, i + ii), bit))
-        yield " ".join(option)
+          pos = j + jj, i + ii
+          if pos in self.seeds and bit == 0:
+            impossible = True
+          if all(pos not in minmax for minmax in self.minmax) and bit == 1:
+            impossible = True
+        if not impossible:
+          yield " ".join(option)
 
   def collect_direction(self, h, w, direction, move):
     for j, i in dlx.iter_grid(h, w):
