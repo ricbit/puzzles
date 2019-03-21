@@ -9,11 +9,11 @@ class Nurikabe:
     self.h = h
     self.w = w
     self.groups = groups
-    self.candidates = collections.defaultdict(lambda: set([-1]))
     self.seeds = {(gj, gi): n for n, (gj, gi, _) in enumerate(groups)}
     self.empty_size = self.w * self.h - sum(size for _, _, size in self.groups)
     self.minmax = self.build_minmax()
     self.treesize = [self.build_treesize(i) for i in range(len(groups))]
+    self.candidates = self.build_candidates()
     self.print_minmax()
 
   def print_minmax(self):
@@ -43,6 +43,16 @@ class Nurikabe:
 
   def forced_empty(self, j, i):
     return all((j, i) not in minmax for minmax in self.minmax)
+
+  def build_candidates(self):
+    candidates = collections.defaultdict(lambda: set())
+    for pos in dlx.iter_grid(self.h, self.w):
+      if not self.forced_fill(*pos):
+        candidates[pos].add(-1)
+    for gn, minmax in enumerate(self.minmax):
+      for pos in minmax:
+        candidates[pos].add(gn)
+    return candidates
 
   def build_matrix(self, h, w, default):
     return [[default] * w for _ in range(h)]
@@ -147,7 +157,6 @@ class Nurikabe:
           continue
         eg = self.encodegroup(gn)
         ep = self.encodepos(pj, pi)
-        self.candidates[(pj, pi)].add(gn)
         baseoption = ["G%s" % eg]
         baseoption.append("P%s" % ep)
         baseoption.append("p%s:1" % ep)
