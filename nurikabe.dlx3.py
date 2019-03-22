@@ -178,43 +178,48 @@ class Nurikabe(NurikabeIterators):
   def decodegroup(self, gs):
     return ord(gs) - ord('A')
 
-  def append_tree(self, option, gn, pj, pi, d):
+  def remove_nongroup_neigh(self, option, gn, pj, pi):
     ep = self.encodepos(pj, pi)
     for g, (gj, gi, gsize) in enumerate(self.groups):
-      if (pj, pi) in self.minmax[g]:
-        tree = self.encodetree(d) if g == gn else "0"
-        eg = self.encodegroup(g)
-        option.append("t%s%s:%s" % (eg, ep, tree))
-        if g != gn:
-          for nj, ni in self.iter_neigh(pj, pi, g):
-            if (nj, ni) in self.minmax[g]:
-              option.append("t%s%s:0" % (eg, self.encodepos(nj, ni)))
+      eg = self.encodegroup(g)
+      if g != gn:
+        cells = itertools.chain([(pj, pi)], self.iter_neigh(pj, pi, g))
+        for nj, ni in cells:
+          if (nj, ni) in self.minmax[g]:
+            option.append("t%s%s:0" % (eg, self.encodepos(nj, ni)))
 
   def collect_seed(self, baseoption, gn, pj, pi):
     eg = self.encodegroup(gn)
+    ep = self.encodepos(pj, pi)
     option = baseoption.copy()
     option.append("T%s%d" % (eg, 0))
-    self.append_tree(option, gn, pj, pi, 0)
+    option.append("t%s%s:%s" % (eg, ep, self.encodetree(0)))
+    option.append("u%s%s%s:1" % (eg, ep, self.encodetree(0)))
+    self.remove_nongroup_neigh(option, gn, pj, pi)
     yield " ".join(option)
 
   def build_tail_option(self, base, gn, pj, pi, nj, ni, d):
+    options = set()
     eg = self.encodegroup(gn)
     en = self.encodepos(nj, ni)
     ep = self.encodepos(pj, pi)
-    option = base.copy()
-    option.append("T%s%d" % (eg, d))
-    self.append_tree(option, gn, pj, pi, d)
-    option.append("t%s%s:%s" % (eg, en, self.encodetree(d - 1)))
-    for oj, oi in self.iter_neigh(pj, pi, gn):
-      if (nj, ni) != (oj, oi) and (oj, oi) in self.minmax[gn]:
-        omin, omax = self.minmax[gn][(oj, oi)]
-        on = self.encodepos(oj, oi)
-        for d2 in range(omin, omax + 1):
-          if d2 < d - 1 or d2 > d + 1:
-            option.append("u%s%s%s:0" % (eg, on, self.encodetree(d2)))
-    option.append("u%s%s" % (eg, ep))
-    option.append("u%s%s%s:1" % (eg, ep, self.encodetree(d)))
-    return " ".join(option)
+    for bits in itertools.product([0, 1], repeat=4):
+      option = base.copy()
+      option.append("T%s%d" % (eg, d))
+      option.append("t%s%s:%s" % (eg, ep, self.encodetree(d)))
+      option.append("t%s%s:%s" % (eg, en, self.encodetree(d - 1)))
+      self.remove_nongroup_neigh(option, gn, pj, pi)
+      for no, (oj, oi) in enumerate(self.iter_neigh(pj, pi, gn)):
+        if (nj, ni) != (oj, oi) and (oj, oi) in self.minmax[gn]:
+          omin, omax = self.minmax[gn][(oj, oi)]
+          en = self.encodepos(oj, oi)
+          for d2 in range(omin, omax + 1):
+            if d2 < d - 1 or d2 > d + 1:
+              option.append("u%s%s%s:0" % (eg, en, self.encodetree(d2)))
+      option.append("u%s%s" % (eg, ep))
+      option.append("u%s%s%s:1" % (eg, ep, self.encodetree(d)))
+      options.add(" ".join(sorted(option)))
+    yield from options
 
   def collect_tail(self, baseoption, gn, pj, pi):
     eg = self.encodegroup(gn)
@@ -227,7 +232,7 @@ class Nurikabe(NurikabeIterators):
       nmin, nmax = self.minmax[gn][(nj, ni)]
       for d in range(mindist, maxdist + 1):
         if nmin <= d - 1 <= nmax:
-          yield self.build_tail_option(baseoption, gn, pj, pi, nj, ni, d)
+          yield from self.build_tail_option(baseoption, gn, pj, pi, nj, ni, d)
 
   def collect_groups(self):
     for gn, (gj, gi, gsize) in enumerate(self.groups):
@@ -281,13 +286,13 @@ class Nurikabe(NurikabeIterators):
     option.append("p%s:1" % pos)
     for nj, ni in self.iter_neigh(j, i):
       option.append("p%s:0" % self.encodepos(nj, ni))
-    yield " ".join(option)
+    return " ".join(option)
 
   def collect_filled_cross(self):
     for j, i in itertools.product(range(self.h), range(self.w)):
       if (j, i) in self.seeds:
         if self.groups[self.seeds[(j, i)]][2] == 1:
-          yield from self.collect_single_one(j, i)
+          yield self.collect_single_one(j, i)
           continue
       if not self.forced_empty(j, i):
         pos = self.encodepos(j, i)
@@ -311,15 +316,14 @@ class Nurikabe(NurikabeIterators):
       base = ["S%s" % self.encodepos(j, i)]
       for bits in itertools.product([0, 1], repeat=4):
         option = base.copy()
-        impossible = False
         for n, (jj, ii) in enumerate(itertools.product([0, 1], repeat=2)):
-          option.append("p%s:%d" % (self.encodepos(j + jj, i + ii), bits[n]))
           pos = j + jj, i + ii
+          option.append("p%s:%d" % (self.encodepos(*pos), bits[n]))
           if self.forced_fill(*pos) and bits[n] == 0:
-            impossible = True
+            break
           if self.forced_empty(*pos) and bits[n] == 1:
-            impossible = True
-        if not impossible:
+            break
+        else:
           yield " ".join(option)
 
   def collect_direction(self, h, w, direction, move):
