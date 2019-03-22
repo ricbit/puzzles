@@ -8,6 +8,7 @@ def index(seq):
   for i, _ in enumerate(seq):
     yield i
 
+
 def build_matrix(h, w, default):
   return [[default] * w for _ in range(h)]
 
@@ -25,13 +26,17 @@ class NurikabeIterators:
         if dist < gsize:
           yield gj + j, gi + i, dist
 
-  def iter_neigh(self, pj, pi, gj, gi, gsize):
+  def iter_neigh(self, pj, pi, group=None):
     disp = [x for x in itertools.product(range(-1, 2), repeat=2) if x.count(0) == 1]
     for jj, ii in disp:
       nj = pj + jj
       ni = pi + ii
-      if abs(nj - gj) + abs(ni - gi) < gsize:
-        if 0 <= nj < self.h and 0 <= ni < self.w:
+      if 0 <= nj < self.h and 0 <= ni < self.w:
+        if group:
+          gj, gi, gsize = self.groups[group]
+          if abs(nj - gj) + abs(ni - gi) < gsize:
+            yield nj, ni
+        else:
           yield nj, ni
 
   def inside(self, j, i):
@@ -54,7 +59,7 @@ class NurikabeBuilder(NurikabeIterators):
     for n, (gj, gi, gsize) in enumerate(self.groups):
       if n != group:
         forbidden[gj][gi] = True
-        for nj, ni in self.iter_neigh(gj, gi, gj, gi, gsize):
+        for nj, ni in self.iter_neigh(gj, gi, n):
           forbidden[nj][ni] = True
     return forbidden
 
@@ -65,7 +70,7 @@ class NurikabeBuilder(NurikabeIterators):
     value[gj][gi] = 0
     while stack:
       pj, pi, pv = stack.pop(0)
-      for nj, ni in self.iter_neigh(pj, pi, gj, gi, gsize):
+      for nj, ni in self.iter_neigh(pj, pi, group):
         if value[nj][ni] < 0 and not self.forbidden[group][nj][ni]:
           value[nj][ni] = pv + 1
           if pv + 1 < gsize - 1:
@@ -80,7 +85,7 @@ class NurikabeBuilder(NurikabeIterators):
     value[gj][gi] = 0
     while prevstack:
       for pj, pi, pv in prevstack:
-        for nj, ni in self.iter_neigh(pj, pi, gj, gi, gsize):
+        for nj, ni in self.iter_neigh(pj, pi, group):
           if nj == gj and ni == gi:
             continue
           if value[nj][ni] >= 2:
@@ -180,13 +185,12 @@ class Nurikabe(NurikabeIterators):
         eg = self.encodegroup(g)
         option.append("t%s%s:%s" % (eg, ep, tree))
         if g != gn:
-          for nj, ni in self.iter_neigh(pj, pi, gj, gi, gsize):
+          for nj, ni in self.iter_neigh(pj, pi, g):
             if (nj, ni) in self.minmax[g]:
               option.append("t%s%s:0" % (eg, self.encodepos(nj, ni)))
 
   def collect_seed(self, baseoption, gn, pj, pi):
     eg = self.encodegroup(gn)
-    ep = self.encodepos(pj, pi)
     option = baseoption.copy()
     option.append("T%s%d" % (eg, 0))
     self.append_tree(option, gn, pj, pi, 0)
@@ -197,7 +201,7 @@ class Nurikabe(NurikabeIterators):
     ep = self.encodepos(pj, pi)
     gj, gi, gsize = self.groups[gn]
     mindist, maxdist = self.minmax[gn][(pj, pi)]
-    for nj, ni in self.iter_neigh(pj, pi, gj, gi, gsize):
+    for nj, ni in self.iter_neigh(pj, pi, gn):
       if (nj, ni) not in self.minmax[gn]:
         continue
       nmin, nmax = self.minmax[gn][(nj, ni)]
@@ -208,7 +212,7 @@ class Nurikabe(NurikabeIterators):
           option.append("T%s%d" % (eg, d))
           self.append_tree(option, gn, pj, pi, d)
           option.append("t%s%s:%s" % (eg, en, self.encodetree(d - 1)))
-          for oj, oi in self.iter_neigh(pj, pi, gj, gi, gsize):
+          for oj, oi in self.iter_neigh(pj, pi, gn):
             if (nj, ni) != (oj, oi) and (oj, oi) in self.minmax[gn]:
               omin, omax = self.minmax[gn][(oj, oi)]
               on = self.encodepos(oj, oi)
@@ -251,7 +255,7 @@ class Nurikabe(NurikabeIterators):
       if not self.forced_fill(j, i):
         pos = self.encodepos(j, i)
         yield "D%s p%s:1" % (pos, pos)
-        for nj, ni in self.iter_neigh(j, i, j, i, 2):
+        for nj, ni in self.iter_neigh(j, i):
           if not self.forced_fill(nj, ni):
             option = ["D%s" % pos]
             option.append("p%s:0" % pos)
@@ -264,7 +268,7 @@ class Nurikabe(NurikabeIterators):
         if self.groups[self.seeds.get((j, i), 0)][2] != 1:
           pos = self.encodepos(j, i)
           yield "F%s p%s:0" % (pos, pos)
-          for nj, ni in self.iter_neigh(j, i, j, i, 2):
+          for nj, ni in self.iter_neigh(j, i):
             if not self.forced_empty(nj, ni):
               option = ["F%s" % pos]
               option.append("p%s:1" % pos)
