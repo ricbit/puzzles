@@ -151,16 +151,24 @@ class Nurikabe:
   def decodegroup(self, gs):
     return ord(gs) - ord('A')
 
-  def collect_seed(self, baseoption, gn, pj, pi, eg, ep):
+  def append_tree(self, option, gn, pj, pi, d):
+    ep = self.encodepos(pj, pi)
+    for g, _ in enumerate(self.groups):
+      if (pj, pi) in self.minmax[g]:
+        tree = self.encodetree(d) if g == gn else "0"
+        option.append("t%s%s:%s" % (self.encodegroup(g), ep, tree))
+
+  def collect_seed(self, baseoption, gn, pj, pi):
+    eg = self.encodegroup(gn)
+    ep = self.encodepos(pj, pi)
     option = baseoption.copy()
     option.append("T%s%d" % (eg, 0))
-    for g in range(len(self.groups)):
-      if (pj, pi) in self.minmax[g]:
-        tree = self.encodetree(0) if g == gn else "0"
-        option.append("t%s%s:%s" % (self.encodegroup(g), ep, tree))
+    self.append_tree(option, gn, pj, pi, 0)
     yield " ".join(option)
 
-  def collect_tail(self, baseoption, gn, pj, pi, eg, ep):
+  def collect_tail(self, baseoption, gn, pj, pi):
+    eg = self.encodegroup(gn)
+    ep = self.encodepos(pj, pi)
     gj, gi, gsize = self.groups[gn]
     mindist, maxdist = self.minmax[gn][(pj, pi)]
     for nj, ni in self.iter_neigh(pj, pi, gj, gi, gsize):
@@ -172,10 +180,7 @@ class Nurikabe:
         if nmin <= d - 1 <= nmax:
           option = baseoption.copy()
           option.append("T%s%d" % (eg, d))
-          for g in range(len(self.groups)):
-            if (pj, pi) in self.minmax[g]:
-              tree = self.encodetree(d) if g == gn else "0"
-              option.append("t%s%s:%s" % (self.encodegroup(g), ep, tree))
+          self.append_tree(option, gn, pj, pi, d)
           option.append("t%s%s:%s" % (eg, en, self.encodetree(d - 1)))
           option.append("u%s%s" % (eg, ep))
           yield " ".join(option)
@@ -192,9 +197,9 @@ class Nurikabe:
         baseoption.append("p%s:1" % ep)
         baseoption.append("g%s:%s" % (ep, eg))
         if pj == gj and pi == gi:
-          yield from self.collect_seed(baseoption, gn, pj, pi, eg, ep)
+          yield from self.collect_seed(baseoption, gn, pj, pi)
         else:
-          yield from self.collect_tail(baseoption, gn, pj, pi, eg, ep)
+          yield from self.collect_tail(baseoption, gn, pj, pi)
 
   def collect_empty(self):
     for j, i in itertools.product(range(self.h), range(self.w)):
