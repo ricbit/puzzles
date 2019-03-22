@@ -4,23 +4,11 @@ import sys
 import collections
 import math
 
-class Nurikabe:
+class NurikabeIterators:
   def __init__(self, h, w, groups):
     self.h = h
     self.w = w
     self.groups = groups
-    self.seeds = {(gj, gi): n for n, (gj, gi, _) in enumerate(groups)}
-    self.empty_size = self.w * self.h - sum(size for _, _, size in self.groups)
-    self.minmax = self.build_minmax()
-    self.treesize = [self.build_treesize(i) for i in range(len(groups))]
-    self.candidates = self.build_candidates()
-    self.print_minmax()
-
-  def print_minmax(self):
-    for g, minmax in enumerate(self.minmax):
-      print(g, self.encodegroup(g), self.groups[g], self.treesize[g], file=sys.stderr)
-      print("%s\n\n" % self.encode_matrix(minmax, " ", lambda x:
-        self.encodetree(x[1]) + self.encodetree(x[0])), file=sys.stderr)
 
   def iter_group(self, gj, gi, gsize):
     for j, i in itertools.product(range(1 - gsize, gsize), repeat=2):
@@ -41,24 +29,13 @@ class Nurikabe:
   def inside(self, j, i):
     return 0 <= j < self.h and 0 <= i < self.w
 
-  def forced_fill(self, j, i):
-    return (j, i) in self.seeds
-
-  def forced_empty(self, j, i):
-    return all((j, i) not in minmax for minmax in self.minmax)
-
-  def build_candidates(self):
-    candidates = collections.defaultdict(lambda: set())
-    for pos in dlx.iter_grid(self.h, self.w):
-      if not self.forced_fill(*pos):
-        candidates[pos].add(-1)
-    for gn, minmax in enumerate(self.minmax):
-      for pos in minmax:
-        candidates[pos].add(gn)
-    return candidates
-
   def build_matrix(self, h, w, default):
     return [[default] * w for _ in range(h)]
+
+
+class NurikabeMinMax(NurikabeIterators):
+  def __init__(self, h, w, groups):
+    NurikabeIterators.__init__(self, h, w, groups)
 
   def build_forbidden(self, group):
     forbidden = self.build_matrix(self.h, self.w, False)
@@ -112,6 +89,38 @@ class Nurikabe:
         if gmin[j][i] >= 0:
           minmax[g][(j, i)] = (gmin[j][i], gmax[j][i])
     return minmax
+
+class Nurikabe(NurikabeIterators):
+  def __init__(self, h, w, groups):
+    NurikabeIterators.__init__(self, h, w, groups)
+    self.seeds = {(gj, gi): n for n, (gj, gi, _) in enumerate(groups)}
+    self.empty_size = self.w * self.h - sum(size for _, _, size in self.groups)
+    self.minmax = NurikabeMinMax(h, w, groups).build_minmax()
+    self.treesize = [self.build_treesize(i) for i in range(len(groups))]
+    self.candidates = self.build_candidates()
+    self.print_minmax()
+
+  def print_minmax(self):
+    for g, minmax in enumerate(self.minmax):
+      print(g, self.encodegroup(g), self.groups[g], self.treesize[g], file=sys.stderr)
+      print("%s\n\n" % self.encode_matrix(minmax, " ", lambda x:
+        self.encodetree(x[1]) + self.encodetree(x[0])), file=sys.stderr)
+
+  def forced_fill(self, j, i):
+    return (j, i) in self.seeds
+
+  def forced_empty(self, j, i):
+    return all((j, i) not in minmax for minmax in self.minmax)
+
+  def build_candidates(self):
+    candidates = collections.defaultdict(lambda: set())
+    for pos in dlx.iter_grid(self.h, self.w):
+      if not self.forced_fill(*pos):
+        candidates[pos].add(-1)
+    for gn, minmax in enumerate(self.minmax):
+      for pos in minmax:
+        candidates[pos].add(gn)
+    return candidates
 
   def build_treesize(self, gn):
     gj, gi, gsize = self.groups[gn]
