@@ -153,10 +153,15 @@ class Nurikabe:
 
   def append_tree(self, option, gn, pj, pi, d):
     ep = self.encodepos(pj, pi)
-    for g, _ in enumerate(self.groups):
+    for g, (gj, gi, gsize) in enumerate(self.groups):
       if (pj, pi) in self.minmax[g]:
         tree = self.encodetree(d) if g == gn else "0"
-        option.append("t%s%s:%s" % (self.encodegroup(g), ep, tree))
+        eg = self.encodegroup(g)
+        option.append("t%s%s:%s" % (eg, ep, tree))
+        if g != gn:
+          for nj, ni in self.iter_neigh(pj, pi, gj, gi, gsize):
+            if (nj, ni) in self.minmax[g]:
+              option.append("t%s%s:0" % (eg, self.encodepos(nj, ni)))
 
   def collect_seed(self, baseoption, gn, pj, pi):
     eg = self.encodegroup(gn)
