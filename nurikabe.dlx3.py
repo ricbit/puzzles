@@ -2,7 +2,7 @@ import dlx
 import itertools
 import sys
 import collections
-import pprint
+import math
 
 class Nurikabe:
   def __init__(self, h, w, groups):
@@ -91,7 +91,8 @@ class Nurikabe:
         for nj, ni in self.iter_neigh(pj, pi, gj, gi, gsize):
           if nj == gj and ni == gi:
             continue
-          value[nj][ni] = pv + 1
+          if value[nj][ni] >= 2:
+            value[nj][ni] = pv + 1
           if not forbidden[group][nj][ni] and pv + 1 < gsize - 1:
             nextstack.append((nj, ni, pv + 1))
       prevstack = nextstack
@@ -278,14 +279,16 @@ class Nurikabe:
         elif item.startswith("EDGE"):
           gn = self.decodegroup(item[4])
           _, _, gsize = self.groups[gn]
-          items.add("%d:%d|%s" % (gsize - 1, gsize * gsize, item))
+          # Max edges is given by A123663
+          maxedges = 2 * gsize - int(math.ceil(2 * gsize ** 0.5))
+          items.add("%d:%d|%s" % (gsize - 1, maxedges, item))
         elif item.startswith("E"):
           items.add("%d|%s" % (empty, item))
         elif item.startswith("T"):
           gn = self.decodegroup(item[1])
           size = self.treesize[gn][int(item[2:])]
           items.add("%d:%d|%s" % (size[0], size[1], item))
-        elif item[0].isupper():
+        elif item[0].isupper() or item[0] == "_":
           items.add(item)
     return items
 
@@ -294,7 +297,7 @@ def main():
   ngroups = int(input().strip())
   groups = [tuple(map(int, input().split())) for _ in range(ngroups)]
   solver = Nurikabe(h, w, groups)
-  options = []
+  options = ["_W%d" % w, "_H%d" % h]
   options.extend(solver.collect_groups())
   options.extend(solver.collect_empty_pairs())
   options.extend(solver.collect_empty())
