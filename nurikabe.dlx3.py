@@ -38,6 +38,9 @@ class Nurikabe:
         if 0 <= nj < self.h and 0 <= ni < self.w:
           yield nj, ni
 
+  def inside(self, j, i):
+    return 0 <= j < self.h and 0 <= i < self.w
+
   def forced_fill(self, j, i):
     return (j, i) in self.seeds
 
@@ -187,7 +190,15 @@ class Nurikabe:
           option.append("T%s%d" % (eg, d))
           self.append_tree(option, gn, pj, pi, d)
           option.append("t%s%s:%s" % (eg, en, self.encodetree(d - 1)))
+          for oj, oi in self.iter_neigh(pj, pi, gj, gi, gsize):
+            if (nj, ni) != (oj, oi) and (oj, oi) in self.minmax[gn]:
+              omin, omax = self.minmax[gn][(oj, oi)]
+              on = self.encodepos(oj, oi)
+              for d2 in range(omin, omax + 1):
+                if d2 < d - 1 or d2 > d + 1:
+                  option.append("u%s%s%s:0" % (eg, on, self.encodetree(d2)))
           option.append("u%s%s" % (eg, ep))
+          option.append("u%s%s%s:1" % (eg, ep, self.encodetree(d)))
           yield " ".join(option)
 
   def collect_groups(self):
@@ -282,6 +293,23 @@ class Nurikabe:
       self.h, self.w - 1, "H", lambda j, i, k: (j, i + k))
     yield from self.collect_direction(
       self.h - 1, self.w, "V", lambda j, i, k: (j + k, i))
+
+  def collect_twos(self):
+    for gj, gi, gsize in self.groups:
+      if gsize == 2:
+        pos = self.encodepos(gj, gi)
+        for jj, ii in itertools.product([-1, 1], repeat=2):
+          pj, pi = gj + jj, gi + ii
+          if self.inside(pj, pi):
+            option = ["_2%s" % pos]
+            option.append("p%s:0" % self.encodepos(pj, pi))
+            nj, ni = gj, gi - ii
+            if self.inside(nj, ni):
+              option.append("p%s:0" % self.encodepos(nj, ni))
+            nj, ni = gj - jj, gi
+            if self.inside(nj, ni):
+              option.append("p%s:0" % self.encodepos(nj, ni))
+            yield " ".join(option)
 
   def collect_primary(self, options):
     items = {}
