@@ -197,6 +197,25 @@ class Nurikabe(NurikabeIterators):
     self.append_tree(option, gn, pj, pi, 0)
     yield " ".join(option)
 
+  def build_tail_option(self, base, gn, pj, pi, nj, ni, d):
+    eg = self.encodegroup(gn)
+    en = self.encodepos(nj, ni)
+    ep = self.encodepos(pj, pi)
+    option = base.copy()
+    option.append("T%s%d" % (eg, d))
+    self.append_tree(option, gn, pj, pi, d)
+    option.append("t%s%s:%s" % (eg, en, self.encodetree(d - 1)))
+    for oj, oi in self.iter_neigh(pj, pi, gn):
+      if (nj, ni) != (oj, oi) and (oj, oi) in self.minmax[gn]:
+        omin, omax = self.minmax[gn][(oj, oi)]
+        on = self.encodepos(oj, oi)
+        for d2 in range(omin, omax + 1):
+          if d2 < d - 1 or d2 > d + 1:
+            option.append("u%s%s%s:0" % (eg, on, self.encodetree(d2)))
+    option.append("u%s%s" % (eg, ep))
+    option.append("u%s%s%s:1" % (eg, ep, self.encodetree(d)))
+    return " ".join(option)
+
   def collect_tail(self, baseoption, gn, pj, pi):
     eg = self.encodegroup(gn)
     ep = self.encodepos(pj, pi)
@@ -206,23 +225,9 @@ class Nurikabe(NurikabeIterators):
       if (nj, ni) not in self.minmax[gn]:
         continue
       nmin, nmax = self.minmax[gn][(nj, ni)]
-      en = self.encodepos(nj, ni)
       for d in range(mindist, maxdist + 1):
         if nmin <= d - 1 <= nmax:
-          option = baseoption.copy()
-          option.append("T%s%d" % (eg, d))
-          self.append_tree(option, gn, pj, pi, d)
-          option.append("t%s%s:%s" % (eg, en, self.encodetree(d - 1)))
-          for oj, oi in self.iter_neigh(pj, pi, gn):
-            if (nj, ni) != (oj, oi) and (oj, oi) in self.minmax[gn]:
-              omin, omax = self.minmax[gn][(oj, oi)]
-              on = self.encodepos(oj, oi)
-              for d2 in range(omin, omax + 1):
-                if d2 < d - 1 or d2 > d + 1:
-                  option.append("u%s%s%s:0" % (eg, on, self.encodetree(d2)))
-          option.append("u%s%s" % (eg, ep))
-          option.append("u%s%s%s:1" % (eg, ep, self.encodetree(d)))
-          yield " ".join(option)
+          yield self.build_tail_option(baseoption, gn, pj, pi, nj, ni, d)
 
   def collect_groups(self):
     for gn, (gj, gi, gsize) in enumerate(self.groups):
@@ -255,7 +260,6 @@ class Nurikabe(NurikabeIterators):
     for j, i in itertools.product(range(self.h), range(self.w)):
       if not self.forced_fill(j, i):
         pos = self.encodepos(j, i)
-        yield "D%s p%s:1" % (pos, pos)
         options = set()
         for nj, ni in self.iter_neigh(j, i):
           if not self.forced_fill(nj, ni):
@@ -271,32 +275,49 @@ class Nurikabe(NurikabeIterators):
               options.add(" ".join(sorted(option)))
         yield from options
 
-  def collect_filled(self):
+  def collect_single_one(self, j, i):
+    pos = self.encodepos(j, i)
+    option = ["D%s" % pos]
+    option.append("p%s:1" % pos)
+    for nj, ni in self.iter_neigh(j, i):
+      option.append("p%s:0" % self.encodepos(nj, ni))
+    yield " ".join(option)
+
+  def collect_filled_cross(self):
     for j, i in itertools.product(range(self.h), range(self.w)):
+      if (j, i) in self.seeds:
+        if self.groups[self.seeds[(j, i)]][2] == 1:
+          yield from self.collect_single_one(j, i)
+          continue
       if not self.forced_empty(j, i):
-        if self.groups[self.seeds.get((j, i), 0)][2] != 1:
-          pos = self.encodepos(j, i)
-          yield "F%s p%s:0" % (pos, pos)
-          for nj, ni in self.iter_neigh(j, i):
-            if not self.forced_empty(nj, ni):
-              option = ["F%s" % pos]
+        pos = self.encodepos(j, i)
+        options = set()
+        for nj, ni in self.iter_neigh(j, i):
+          if not self.forced_empty(nj, ni):
+            for bits in itertools.product([0, 1], repeat=4):
+              option = ["D%s" % pos]
               option.append("p%s:1" % pos)
-              option.append("p%s:1" % self.encodepos(nj, ni))
-              yield " ".join(option)
+              for n, (pj, pi) in enumerate(self.iter_neigh(j, i)):
+                ep = self.encodepos(pj, pi)
+                if (pj, pi) == (nj, ni):
+                  option.append("p%s:1" % ep)
+                else:
+                  option.append("p%s:%d" % (ep, bits[n]))
+              options.add(" ".join(sorted(option)))
+        yield from options
 
   def collect_squares(self):
     for j, i in dlx.iter_grid(self.h - 1, self.w - 1):
       base = ["S%s" % self.encodepos(j, i)]
-      for bits in range(1, 16):
+      for bits in itertools.product([0, 1], repeat=4):
         option = base.copy()
         impossible = False
         for n, (jj, ii) in enumerate(itertools.product([0, 1], repeat=2)):
-          bit = int((bits & (1 << n)) > 0)
-          option.append("p%s:%d" % (self.encodepos(j + jj, i + ii), bit))
+          option.append("p%s:%d" % (self.encodepos(j + jj, i + ii), bits[n]))
           pos = j + jj, i + ii
-          if self.forced_fill(*pos) and bit == 0:
+          if self.forced_fill(*pos) and bits[n] == 0:
             impossible = True
-          if self.forced_empty(*pos) and bit == 1:
+          if self.forced_empty(*pos) and bits[n] == 1:
             impossible = True
         if not impossible:
           yield " ".join(option)
@@ -376,7 +397,7 @@ def main():
   options.extend(solver.collect_groups())
   options.extend(solver.collect_empty())
   options.extend(solver.collect_empty_cross())
-  options.extend(solver.collect_filled())
+  options.extend(solver.collect_filled_cross())
   options.extend(solver.collect_squares())
   options.extend(solver.collect_pairs())
   print("\n".join(dlx.build_dlx(options, primary=solver.collect_primary)))
