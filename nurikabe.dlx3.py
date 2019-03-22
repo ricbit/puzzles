@@ -151,6 +151,35 @@ class Nurikabe:
   def decodegroup(self, gs):
     return ord(gs) - ord('A')
 
+  def collect_seed(self, baseoption, gn, pj, pi, eg, ep):
+    option = baseoption.copy()
+    option.append("T%s%d" % (eg, 0))
+    for g in range(len(self.groups)):
+      if (pj, pi) in self.minmax[g]:
+        tree = self.encodetree(0) if g == gn else "0"
+        option.append("t%s%s:%s" % (self.encodegroup(g), ep, tree))
+    yield " ".join(option)
+
+  def collect_tail(self, baseoption, gn, pj, pi, eg, ep):
+    gj, gi, gsize = self.groups[gn]
+    mindist, maxdist = self.minmax[gn][(pj, pi)]
+    for nj, ni in self.iter_neigh(pj, pi, gj, gi, gsize):
+      if (nj, ni) not in self.minmax[gn]:
+        continue
+      nmin, nmax = self.minmax[gn][(nj, ni)]
+      en = self.encodepos(nj, ni)
+      for d in range(mindist, maxdist + 1):
+        if nmin <= d - 1 <= nmax:
+          option = baseoption.copy()
+          option.append("T%s%d" % (eg, d))
+          for g in range(len(self.groups)):
+            if (pj, pi) in self.minmax[g]:
+              tree = self.encodetree(d) if g == gn else "0"
+              option.append("t%s%s:%s" % (self.encodegroup(g), ep, tree))
+          option.append("t%s%s:%s" % (eg, en, self.encodetree(d - 1)))
+          option.append("u%s%s" % (eg, ep))
+          yield " ".join(option)
+
   def collect_groups(self):
     for gn, (gj, gi, gsize) in enumerate(self.groups):
       for pj, pi, dist in self.iter_group(gj, gi, gsize):
@@ -163,31 +192,9 @@ class Nurikabe:
         baseoption.append("p%s:1" % ep)
         baseoption.append("g%s:%s" % (ep, eg))
         if pj == gj and pi == gi:
-          option = baseoption.copy()
-          option.append("T%s%d" % (eg, 0))
-          for g in range(len(self.groups)):
-            if (pj, pi) in self.minmax[g]:
-              tree = self.encodetree(0) if g == gn else "0"
-              option.append("t%s%s:%s" % (self.encodegroup(g), ep, tree))
-          yield " ".join(option)
+          yield from self.collect_seed(baseoption, gn, pj, pi, eg, ep)
         else:
-          mindist, maxdist = self.minmax[gn][(pj, pi)]
-          for nj, ni in self.iter_neigh(pj, pi, gj, gi, gsize):
-            if (nj, ni) not in self.minmax[gn]:
-              continue
-            nmin, nmax = self.minmax[gn][(nj, ni)]
-            en = self.encodepos(nj, ni)
-            for d in range(mindist, maxdist + 1):
-              if nmin <= d - 1 <= nmax:
-                option = baseoption.copy()
-                option.append("T%s%d" % (eg, d))
-                for g in range(len(self.groups)):
-                  if (pj, pi) in self.minmax[g]:
-                    tree = self.encodetree(d) if g == gn else "0"
-                    option.append("t%s%s:%s" % (self.encodegroup(g), ep, tree))
-                option.append("t%s%s:%s" % (eg, en, self.encodetree(d - 1)))
-                option.append("u%s%s" % (eg, ep))
-                yield " ".join(option)
+          yield from self.collect_tail(baseoption, gn, pj, pi, eg, ep)
 
   def collect_empty(self):
     for j, i in itertools.product(range(self.h), range(self.w)):
