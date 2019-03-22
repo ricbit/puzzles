@@ -12,6 +12,7 @@ def index(seq):
 def build_matrix(h, w, default):
   return [[default] * w for _ in range(h)]
 
+
 class NurikabeIterators:
   def __init__(self, h, w, groups):
     self.h = h
@@ -250,17 +251,25 @@ class Nurikabe(NurikabeIterators):
             option.append("t%s%s:0" % (self.encodegroup(gn), pos))
         yield " ".join(option)
 
-  def collect_empty_pairs(self):
+  def collect_empty_cross(self):
     for j, i in itertools.product(range(self.h), range(self.w)):
       if not self.forced_fill(j, i):
         pos = self.encodepos(j, i)
         yield "D%s p%s:1" % (pos, pos)
+        options = set()
         for nj, ni in self.iter_neigh(j, i):
           if not self.forced_fill(nj, ni):
-            option = ["D%s" % pos]
-            option.append("p%s:0" % pos)
-            option.append("p%s:0" % self.encodepos(nj, ni))
-            yield " ".join(option)
+            for bits in itertools.product([0, 1], repeat=4):
+              option = ["D%s" % pos]
+              option.append("p%s:0" % pos)
+              for n, (pj, pi) in enumerate(self.iter_neigh(j, i)):
+                ep = self.encodepos(pj, pi)
+                if (pj, pi) == (nj, ni):
+                  option.append("p%s:0" % ep)
+                else:
+                  option.append("p%s:%d" % (ep, bits[n]))
+              options.add(" ".join(sorted(option)))
+        yield from options
 
   def collect_filled(self):
     for j, i in itertools.product(range(self.h), range(self.w)):
@@ -365,8 +374,8 @@ def main():
   solver = Nurikabe(h, w, groups)
   options = ["_W%d" % w, "_H%d" % h]
   options.extend(solver.collect_groups())
-  options.extend(solver.collect_empty_pairs())
   options.extend(solver.collect_empty())
+  options.extend(solver.collect_empty_cross())
   options.extend(solver.collect_filled())
   options.extend(solver.collect_squares())
   options.extend(solver.collect_pairs())
