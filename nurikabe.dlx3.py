@@ -192,9 +192,7 @@ class Nurikabe:
 
   def collect_groups(self):
     for gn, (gj, gi, gsize) in enumerate(self.groups):
-      for pj, pi, dist in self.iter_group(gj, gi, gsize):
-        if (pj, pi) not in self.minmax[gn]:
-          continue
+      for pj, pi in self.minmax[gn]:
         eg = self.encodegroup(gn)
         ep = self.encodepos(pj, pi)
         baseoption = ["G%s" % eg]
@@ -286,28 +284,29 @@ class Nurikabe:
       self.h - 1, self.w, "V", lambda j, i, k: (j + k, i))
 
   def collect_primary(self, options):
-    items = set()
+    items = {}
     empty = self.empty_size
     for option in options:
       for item in option.split(" "):
         if item.startswith("G"):
           gn = self.decodegroup(item[1:])
-          items.add("%d|%s" % (self.groups[gn][2], item))
+          items.setdefault("%d|%s" % (self.groups[gn][2], item), len(items))
         elif item.startswith("EDGE"):
           gn = self.decodegroup(item[4])
           _, _, gsize = self.groups[gn]
           # Max edges is given by A123663
           maxedges = 2 * gsize - int(math.ceil(2 * gsize ** 0.5))
-          items.add("%d:%d|%s" % (gsize - 1, maxedges, item))
+          items.setdefault("%d:%d|%s" % (gsize - 1, maxedges, item), len(items))
         elif item.startswith("E"):
-          items.add("%d|%s" % (empty, item))
+          items.setdefault("%d|%s" % (empty, item), len(items))
         elif item.startswith("T"):
           gn = self.decodegroup(item[1])
           size = self.treesize[gn][int(item[2:])]
-          items.add("%d:%d|%s" % (size[0], size[1], item))
+          items.setdefault("%d:%d|%s" % (size[0], size[1], item), len(items))
         elif item[0].isupper() or item[0] == "_":
-          items.add(item)
-    return items
+          items.setdefault(item, len(items))
+    reverse = {v: k for k, v in items.items()}
+    return [reverse[k] for k in sorted(reverse)]
 
 def main():
   h, w = map(int, input().split())

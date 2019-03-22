@@ -15,6 +15,7 @@ def main():
   binary.add_argument("--dlx3", help="Use dlx3 (variant with multiplicity)", action="store_true")
   binary.add_argument("--dlx5", help="Use dlx5 (variant with cost)", action="store_true")
   speed = parser.add_mutually_exclusive_group()
+  speed.add_argument("--speed", help="Output progress in a given speed", nargs=1, type=int)
   speed.add_argument("--fast", help="Output progress fast", action="store_true")
   speed.add_argument("--faster", help="Output progress faster", action="store_true")
   parser.add_argument("--pre", help="Run the preprocessor", nargs=1,
@@ -41,7 +42,9 @@ def main():
     executable = "dlx2"
   verbose = "v391" if args.verbose else ""
   random = "s%d" % args.random if args.random else ""
-  if args.fast:
+  if args.speed:
+    ticks = "d%d" % args.speed[0]
+  elif args.fast:
     ticks = "d100000000"
   elif args.faster:
     ticks = "d10000000"

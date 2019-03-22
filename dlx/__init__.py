@@ -49,13 +49,16 @@ def _collect_secondary(options):
   return items
 
 def build_dlx(options, primary=_collect_primary, secondary=_collect_secondary):
-  poptions = primary(options)
-  soptions = secondary(options)
+  sorted_options = []
+  for option in options:
+    sorted_options.append(" ".join(sorted(option.split(" "))))
+  poptions = primary(sorted_options)
+  soptions = secondary(sorted_options)
   if soptions:
     yield "%s | %s" % (" ".join(poptions), " ".join(soptions))
   else:
     yield "%s" % (" ".join(poptions))
-  for option in options:
+  for option in sorted_options:
     yield option
 
 def parse_solutions(lines):
