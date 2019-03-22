@@ -4,11 +4,19 @@ import sys
 import collections
 import math
 
+def index(seq):
+  for i, _ in enumerate(seq):
+    yield i
+
+def build_matrix(h, w, default):
+  return [[default] * w for _ in range(h)]
+
 class NurikabeIterators:
   def __init__(self, h, w, groups):
     self.h = h
     self.w = w
     self.groups = groups
+    self.seeds = {(gj, gi): n for n, (gj, gi, _) in enumerate(groups)}
 
   def iter_group(self, gj, gi, gsize):
     for j, i in itertools.product(range(1 - gsize, gsize), repeat=2):
@@ -29,16 +37,20 @@ class NurikabeIterators:
   def inside(self, j, i):
     return 0 <= j < self.h and 0 <= i < self.w
 
-  def build_matrix(self, h, w, default):
-    return [[default] * w for _ in range(h)]
+  def forced_fill(self, j, i):
+    return (j, i) in self.seeds
 
 
-class NurikabeMinMax(NurikabeIterators):
+class NurikabeBuilder(NurikabeIterators):
   def __init__(self, h, w, groups):
     NurikabeIterators.__init__(self, h, w, groups)
+    self.forbidden = [self.build_forbidden(g) for g in index(self.groups)]
+    self.minmax = self.build_minmax()
+    self.treesize = [self.build_treesize(i) for i in index(self.groups)]
+    self.candidates = self.build_candidates()
 
   def build_forbidden(self, group):
-    forbidden = self.build_matrix(self.h, self.w, False)
+    forbidden = build_matrix(self.h, self.w, False)
     for n, (gj, gi, gsize) in enumerate(self.groups):
       if n != group:
         forbidden[gj][gi] = True
@@ -46,23 +58,23 @@ class NurikabeMinMax(NurikabeIterators):
           forbidden[nj][ni] = True
     return forbidden
 
-  def build_min_distance_map(self, group, forbidden):
+  def build_min_distance_map(self, group):
     gj, gi, gsize = self.groups[group]
-    value = self.build_matrix(self.h, self.w, -1)
+    value = build_matrix(self.h, self.w, -1)
     stack = [(gj, gi, 0)]
     value[gj][gi] = 0
     while stack:
       pj, pi, pv = stack.pop(0)
       for nj, ni in self.iter_neigh(pj, pi, gj, gi, gsize):
-        if value[nj][ni] < 0 and not forbidden[group][nj][ni]:
+        if value[nj][ni] < 0 and not self.forbidden[group][nj][ni]:
           value[nj][ni] = pv + 1
           if pv + 1 < gsize - 1:
             stack.append((nj, ni, pv + 1))
     return value
 
-  def build_max_distance_map(self, group, forbidden):
+  def build_max_distance_map(self, group):
     gj, gi, gsize = self.groups[group]
-    value = self.build_matrix(self.h, self.w, gsize)
+    value = build_matrix(self.h, self.w, gsize)
     prevstack = [(gj, gi, 0)]
     nextstack = []
     value[gj][gi] = 0
@@ -73,44 +85,21 @@ class NurikabeMinMax(NurikabeIterators):
             continue
           if value[nj][ni] >= 2:
             value[nj][ni] = pv + 1
-          if not forbidden[group][nj][ni] and pv + 1 < gsize - 1:
+          if not self.forbidden[group][nj][ni] and pv + 1 < gsize - 1:
             nextstack.append((nj, ni, pv + 1))
       prevstack = nextstack
       nextstack = []
     return value
 
   def build_minmax(self):
-    forbidden = [self.build_forbidden(g) for g in range(len(self.groups))]
-    minmap = [self.build_min_distance_map(i, forbidden) for i in range(len(self.groups))]
-    maxmap = [self.build_max_distance_map(i, forbidden) for i in range(len(self.groups))]
+    minmap = [self.build_min_distance_map(i) for i in index(self.groups)]
+    maxmap = [self.build_max_distance_map(i) for i in index(self.groups)]
     minmax = [{} for _ in self.groups]
     for g, (gmin, gmax) in enumerate(zip(minmap, maxmap)):
       for j, i in dlx.iter_grid(self.h, self.w):
         if gmin[j][i] >= 0:
           minmax[g][(j, i)] = (gmin[j][i], gmax[j][i])
     return minmax
-
-class Nurikabe(NurikabeIterators):
-  def __init__(self, h, w, groups):
-    NurikabeIterators.__init__(self, h, w, groups)
-    self.seeds = {(gj, gi): n for n, (gj, gi, _) in enumerate(groups)}
-    self.empty_size = self.w * self.h - sum(size for _, _, size in self.groups)
-    self.minmax = NurikabeMinMax(h, w, groups).build_minmax()
-    self.treesize = [self.build_treesize(i) for i in range(len(groups))]
-    self.candidates = self.build_candidates()
-    self.print_minmax()
-
-  def print_minmax(self):
-    for g, minmax in enumerate(self.minmax):
-      print(g, self.encodegroup(g), self.groups[g], self.treesize[g], file=sys.stderr)
-      print("%s\n\n" % self.encode_matrix(minmax, " ", lambda x:
-        self.encodetree(x[1]) + self.encodetree(x[0])), file=sys.stderr)
-
-  def forced_fill(self, j, i):
-    return (j, i) in self.seeds
-
-  def forced_empty(self, j, i):
-    return all((j, i) not in minmax for minmax in self.minmax)
 
   def build_candidates(self):
     candidates = collections.defaultdict(lambda: set())
@@ -139,6 +128,26 @@ class Nurikabe(NurikabeIterators):
       else:
         treesize.append((0, size[d]))
     return treesize
+
+
+class Nurikabe(NurikabeIterators):
+  def __init__(self, h, w, groups):
+    NurikabeIterators.__init__(self, h, w, groups)
+    self.empty_size = self.w * self.h - sum(size for _, _, size in self.groups)
+    builder = NurikabeBuilder(h, w, groups)
+    self.minmax = builder.minmax
+    self.treesize = builder.treesize
+    self.candidates = builder.candidates
+    self.print_minmax()
+
+  def print_minmax(self):
+    for g, minmax in enumerate(self.minmax):
+      print(g, self.encodegroup(g), self.groups[g], self.treesize[g], file=sys.stderr)
+      print("%s\n\n" % self.encode_matrix(minmax, " ", lambda x:
+        self.encodetree(x[1]) + self.encodetree(x[0])), file=sys.stderr)
+
+  def forced_empty(self, j, i):
+    return all((j, i) not in minmax for minmax in self.minmax)
 
   def encode_matrix(self, mat, spacer, encoder):
     ans = []
@@ -232,7 +241,7 @@ class Nurikabe(NurikabeIterators):
         option.append("g%s:0" % pos)
         option.append("p%s:0" % pos)
         option.append("P%s" % pos)
-        for gn in range(len(self.groups)):
+        for gn in index(self.groups):
           if (j, i) in self.minmax[gn]:
             option.append("t%s%s:0" % (self.encodegroup(gn), pos))
         yield " ".join(option)
