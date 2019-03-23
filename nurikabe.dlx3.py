@@ -47,9 +47,13 @@ class NurikabeIterators:
       return (nj, ni) in self.minmax[group]
     return mod
 
-  def iter_property(self, j, i,
+  def iter_square(self, j, i):
+    for jj, ii in itertools.product([0, 1], repeat=2):
+      yield (j + jj, i + ii)
+
+  def iter_property(self, j, i, base=lambda: self.iter_neigh,
       exist=lambda *_: True, one=lambda *_: False, zero=lambda *_: False):
-    neighs = set(filter(exist, self.iter_neigh(j, i)))
+    neighs = set(filter(exist, base(j, i)))
     ones = set(filter(one, neighs))
     zeros = set(filter(zero, neighs))
     rem = neighs - ones - zeros
@@ -63,7 +67,6 @@ class NurikabeIterators:
           for j, i in zeros:
             yield (j, i, 0)
         yield iter_props()
-
 
   def inside(self, j, i):
     return 0 <= j < self.h and 0 <= i < self.w
@@ -350,21 +353,15 @@ class Nurikabe(NurikabeIterators):
 
   def collect_squares(self):
     self.log("Collecting squares")
+    base = self.iter_square
+    one = lambda pos: self.forced_fill(*pos)
+    zero = lambda pos: self.forced_empty(*pos)
     for j, i in dlx.iter_grid(self.h - 1, self.w - 1):
-      base = ["S%s" % self.encodepos(j, i)]
-      for bits in itertools.product([0, 1], repeat=4):
-        if not sum(bits):
-          continue
-        option = base.copy()
-        for n, (jj, ii) in enumerate(itertools.product([0, 1], repeat=2)):
-          pos = j + jj, i + ii
-          option.append("p%s:%d" % (self.encodepos(*pos), bits[n]))
-          if self.forced_fill(*pos) and bits[n] == 0:
-            break
-          if self.forced_empty(*pos) and bits[n] == 1:
-            break
-        else:
-          yield " ".join(option)
+      for variation in self.iter_property(j, i, base=base, one=one, zero=zero):
+        option = ["S%s" % self.encodepos(j, i)]
+        for pj, pi, bit in variation:
+          option.append("p%s:%d" % (self.encodepos(pj, pi), bit))
+        yield " ".join(option)
 
   def collect_direction(self, h, w, direction, move):
     for j, i in dlx.iter_grid(h, w):
