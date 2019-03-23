@@ -9,7 +9,6 @@ def index(seq):
   for i, _ in enumerate(seq):
     yield i
 
-
 def build_matrix(h, w, default):
   return [[default] * w for _ in range(h)]
 
@@ -25,7 +24,7 @@ class NurikabeIterators:
 
   def iter_group(self, gj, gi, gsize):
     for j, i in itertools.product(range(1 - gsize, gsize), repeat=2):
-      if 0 <= gj + j < self.h and 0 <= gi + i < self.w:
+      if self.inside(gj + j, gi + i):
         dist = abs(j) + abs(i)
         if dist < gsize:
           yield gj + j, gi + i, dist
@@ -73,6 +72,9 @@ class NurikabeIterators:
 
   def forced_fill(self, j, i):
     return (j, i) in self.seeds
+
+  def forced_empty(self, j, i):
+    return all((j, i) not in minmax for minmax in self.minmax)
 
 
 class NurikabeBuilder(NurikabeIterators):
@@ -183,9 +185,6 @@ class Nurikabe(NurikabeIterators):
   def log(self, message, level=1):
     if self.loglevel and level <= self.loglevel:
       print(message, file=sys.stderr)
-
-  def forced_empty(self, j, i):
-    return all((j, i) not in minmax for minmax in self.minmax)
 
   def encode_matrix(self, mat, spacer, encoder):
     ans = []
@@ -375,23 +374,6 @@ class Nurikabe(NurikabeIterators):
       self.h, self.w - 1, "H", lambda j, i, k: (j, i + k))
     yield from self.collect_direction(
       self.h - 1, self.w, "V", lambda j, i, k: (j + k, i))
-
-  def collect_twos(self):
-    for gj, gi, gsize in self.groups:
-      if gsize == 2:
-        pos = self.encodepos(gj, gi)
-        for jj, ii in itertools.product([-1, 1], repeat=2):
-          pj, pi = gj + jj, gi + ii
-          if self.inside(pj, pi):
-            option = ["_2%s" % pos]
-            option.append("p%s:0" % self.encodepos(pj, pi))
-            nj, ni = gj, gi - ii
-            if self.inside(nj, ni):
-              option.append("p%s:0" % self.encodepos(nj, ni))
-            nj, ni = gj - jj, gi
-            if self.inside(nj, ni):
-              option.append("p%s:0" % self.encodepos(nj, ni))
-            yield " ".join(option)
 
   def collect_primary(self, options):
     items = {}
