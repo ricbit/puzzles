@@ -47,6 +47,24 @@ class NurikabeIterators:
       return (nj, ni) in self.minmax[group]
     return mod
 
+  def iter_property(self, j, i,
+      exist=lambda *_: True, one=lambda *_: False, zero=lambda *_: False):
+    neighs = set(filter(exist, self.iter_neigh(j, i)))
+    ones = set(filter(one, neighs))
+    zeros = set(filter(zero, neighs))
+    rem = neighs - ones - zeros
+    for bits in itertools.product([0, 1], repeat=len(rem)):
+      if sum(bits) + len(ones) > 0:
+        def iter_props():
+          for (j, i), bit in zip(rem, bits):
+            yield (j, i, bit)
+          for j, i in ones:
+            yield (j, i, 1)
+          for j, i in zeros:
+            yield (j, i, 0)
+        yield iter_props()
+
+
   def inside(self, j, i):
     return 0 <= j < self.h and 0 <= i < self.w
 
