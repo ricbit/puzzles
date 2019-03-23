@@ -42,6 +42,11 @@ class NurikabeIterators:
       return abs(nj - gj) + abs(ni - gi) < gsize
     return mod
 
+  def has_group(self, group):
+    def mod(nj, ni):
+      return (nj, ni) in self.minmax[group]
+    return mod
+
   def inside(self, j, i):
     return 0 <= j < self.h and 0 <= i < self.w
 
@@ -189,10 +194,11 @@ class Nurikabe(NurikabeIterators):
     for g, (gj, gi, gsize) in enumerate(self.groups):
       eg = self.encodegroup(g)
       if g != gn:
-        cells = itertools.chain([(pj, pi)], self.iter_neigh(pj, pi, self.dist_group(g)))
+        cells = self.iter_neigh(pj, pi, self.has_group(g))
+        if (pj, pi) in self.minmax[g]:
+          cells = itertools.chain(cells, [(pj, pi)])
         for nj, ni in cells:
-          if (nj, ni) in self.minmax[g]:
-            option.append("t%s%s:0" % (eg, self.encodepos(nj, ni)))
+          option.append("t%s%s:0" % (eg, self.encodepos(nj, ni)))
 
   def collect_seed(self, baseoption, gn, pj, pi):
     eg = self.encodegroup(gn)
@@ -214,17 +220,16 @@ class Nurikabe(NurikabeIterators):
       option.append("T%s%d" % (eg, d))
       option.append("t%s%s:%s" % (eg, ep, self.encodetree(d)))
       self.remove_nongroup_neigh(option, gn, pj, pi)
-      for no, (oj, oi) in enumerate(self.iter_neigh(pj, pi, self.dist_group(gn))):
-        if (oj, oi) in self.minmax[gn]:
-          en = self.encodepos(oj, oi)
-          if (nj, ni) == (oj, oi) or bits[no] == 1:
-            option.append("t%s%s:%s" % (eg, en, self.encodetree(d - 1)))
-            option.append("u%s%s%s:1" % (eg, en, self.encodetree(d - 1)))
-          else:
-            omin, omax = self.minmax[gn][(oj, oi)]
-            for d2 in range(omin, omax + 1):
-              if d2 not in [d, d + 1]:
-                option.append("u%s%s%s:0" % (eg, en, self.encodetree(d2)))
+      for no, (oj, oi) in enumerate(self.iter_neigh(pj, pi, self.has_group(gn))):
+        en = self.encodepos(oj, oi)
+        if (nj, ni) == (oj, oi) or bits[no] == 1:
+          option.append("t%s%s:%s" % (eg, en, self.encodetree(d - 1)))
+          option.append("u%s%s%s:1" % (eg, en, self.encodetree(d - 1)))
+        else:
+          omin, omax = self.minmax[gn][(oj, oi)]
+          for d2 in range(omin, omax + 1):
+            if d2 not in [d, d + 1]:
+              option.append("u%s%s%s:0" % (eg, en, self.encodetree(d2)))
       option.append("u%s%s" % (eg, ep))
       option.append("u%s%s%s:1" % (eg, ep, self.encodetree(d)))
       options.add(" ".join(sorted(option)))
@@ -236,9 +241,7 @@ class Nurikabe(NurikabeIterators):
     gj, gi, gsize = self.groups[gn]
     mindist, maxdist = self.minmax[gn][(pj, pi)]
     options = set()
-    for nj, ni in self.iter_neigh(pj, pi, self.dist_group(gn)):
-      if (nj, ni) not in self.minmax[gn]:
-        continue
+    for nj, ni in self.iter_neigh(pj, pi, self.has_group(gn)):
       nmin, nmax = self.minmax[gn][(nj, ni)]
       for d in range(mindist, maxdist + 1):
         if nmin <= d - 1 <= nmax:
