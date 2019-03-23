@@ -51,7 +51,7 @@ class NurikabeIterators:
     for jj, ii in itertools.product([0, 1], repeat=2):
       yield (j + jj, i + ii)
 
-  def iter_property(self, j, i, base=lambda: self.iter_neigh,
+  def iter_property(self, j, i, base,
       exist=lambda *_: True, one=lambda *_: False, zero=lambda *_: False):
     neighs = set(filter(exist, base(j, i)))
     ones = set(filter(one, neighs))
@@ -301,23 +301,17 @@ class Nurikabe(NurikabeIterators):
 
   def collect_empty_cross(self):
     self.log("Collecting empty crosses")
+    base = self.iter_neigh
+    zero = lambda pos: self.forced_fill(*pos)
     for j, i in itertools.product(range(self.h), range(self.w)):
       if not self.forced_fill(j, i):
         pos = self.encodepos(j, i)
-        options = set()
-        for nj, ni in self.iter_neigh(j, i):
-          if not self.forced_fill(nj, ni):
-            for bits in itertools.product([0, 1], repeat=4):
-              option = ["D%s" % pos]
-              option.append("p%s:0" % pos)
-              for n, (pj, pi) in enumerate(self.iter_neigh(j, i)):
-                ep = self.encodepos(pj, pi)
-                if (pj, pi) == (nj, ni):
-                  option.append("p%s:0" % ep)
-                else:
-                  option.append("p%s:%d" % (ep, bits[n]))
-              options.add(" ".join(sorted(option)))
-        yield from options
+        for variation in self.iter_property(j, i, base=base, zero=zero):
+          option = ["D%s" % pos]
+          option.append("p%s:0" % pos)
+          for nj, ni, bit in variation:
+            option.append("p%s:%d" % (self.encodepos(nj, ni), 1 - bit))
+          yield " ".join(option)
 
   def collect_single_one(self, j, i):
     pos = self.encodepos(j, i)
