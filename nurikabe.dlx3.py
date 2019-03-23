@@ -19,7 +19,9 @@ class NurikabeIterators:
     self.h = h
     self.w = w
     self.groups = groups
+    self.minmax = None
     self.seeds = {(gj, gi): n for n, (gj, gi, _) in enumerate(groups)}
+    self.disp = [x for x in itertools.product(range(-1, 2), repeat=2) if x.count(0) == 1]
 
   def iter_group(self, gj, gi, gsize):
     for j, i in itertools.product(range(1 - gsize, gsize), repeat=2):
@@ -28,17 +30,17 @@ class NurikabeIterators:
         if dist < gsize:
           yield gj + j, gi + i, dist
 
-  def iter_neigh(self, pj, pi, group=None):
-    disp = [x for x in itertools.product(range(-1, 2), repeat=2) if x.count(0) == 1]
-    for jj, ii in disp:
+  def iter_neigh(self, pj, pi, *mods):
+    for jj, ii in self.disp:
       nj, ni = pj + jj, pi + ii
-      if self.inside(nj, ni):
-        if group:
-          gj, gi, gsize = self.groups[group]
-          if abs(nj - gj) + abs(ni - gi) < gsize:
-            yield nj, ni
-        else:
-          yield nj, ni
+      if self.inside(nj, ni) and all(mod(nj, ni) for mod in mods):
+        yield nj, ni
+
+  def dist_group(self, group):
+    def mod(nj, ni):
+      gj, gi, gsize = self.groups[group]
+      return abs(nj - gj) + abs(ni - gi) < gsize
+    return mod
 
   def inside(self, j, i):
     return 0 <= j < self.h and 0 <= i < self.w
@@ -60,7 +62,7 @@ class NurikabeBuilder(NurikabeIterators):
     for n, (gj, gi, gsize) in enumerate(self.groups):
       if n != group:
         forbidden[gj][gi] = True
-        for nj, ni in self.iter_neigh(gj, gi, n):
+        for nj, ni in self.iter_neigh(gj, gi, self.dist_group(n)):
           forbidden[nj][ni] = True
     return forbidden
 
@@ -71,7 +73,7 @@ class NurikabeBuilder(NurikabeIterators):
     value[gj][gi] = 0
     while stack:
       pj, pi, pv = stack.pop(0)
-      for nj, ni in self.iter_neigh(pj, pi, group):
+      for nj, ni in self.iter_neigh(pj, pi, self.dist_group(group)):
         if value[nj][ni] < 0 and not self.forbidden[group][nj][ni]:
           value[nj][ni] = pv + 1
           if pv + 1 < gsize - 1:
@@ -86,7 +88,7 @@ class NurikabeBuilder(NurikabeIterators):
     value[gj][gi] = 0
     while prevstack:
       for pj, pi, pv in prevstack:
-        for nj, ni in self.iter_neigh(pj, pi, group):
+        for nj, ni in self.iter_neigh(pj, pi, self.dist_group(group)):
           if nj == gj and ni == gi:
             continue
           if value[nj][ni] >= 2:
@@ -187,7 +189,7 @@ class Nurikabe(NurikabeIterators):
     for g, (gj, gi, gsize) in enumerate(self.groups):
       eg = self.encodegroup(g)
       if g != gn:
-        cells = itertools.chain([(pj, pi)], self.iter_neigh(pj, pi, g))
+        cells = itertools.chain([(pj, pi)], self.iter_neigh(pj, pi, self.dist_group(g)))
         for nj, ni in cells:
           if (nj, ni) in self.minmax[g]:
             option.append("t%s%s:0" % (eg, self.encodepos(nj, ni)))
@@ -212,7 +214,7 @@ class Nurikabe(NurikabeIterators):
       option.append("T%s%d" % (eg, d))
       option.append("t%s%s:%s" % (eg, ep, self.encodetree(d)))
       self.remove_nongroup_neigh(option, gn, pj, pi)
-      for no, (oj, oi) in enumerate(self.iter_neigh(pj, pi, gn)):
+      for no, (oj, oi) in enumerate(self.iter_neigh(pj, pi, self.dist_group(gn))):
         if (oj, oi) in self.minmax[gn]:
           en = self.encodepos(oj, oi)
           if (nj, ni) == (oj, oi) or bits[no] == 1:
@@ -234,7 +236,7 @@ class Nurikabe(NurikabeIterators):
     gj, gi, gsize = self.groups[gn]
     mindist, maxdist = self.minmax[gn][(pj, pi)]
     options = set()
-    for nj, ni in self.iter_neigh(pj, pi, gn):
+    for nj, ni in self.iter_neigh(pj, pi, self.dist_group(gn)):
       if (nj, ni) not in self.minmax[gn]:
         continue
       nmin, nmax = self.minmax[gn][(nj, ni)]
