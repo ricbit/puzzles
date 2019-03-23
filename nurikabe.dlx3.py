@@ -30,9 +30,8 @@ class NurikabeIterators:
   def iter_neigh(self, pj, pi, group=None):
     disp = [x for x in itertools.product(range(-1, 2), repeat=2) if x.count(0) == 1]
     for jj, ii in disp:
-      nj = pj + jj
-      ni = pi + ii
-      if 0 <= nj < self.h and 0 <= ni < self.w:
+      nj, ni = pj + jj, pi + ii
+      if self.inside(nj, ni):
         if group:
           gj, gi, gsize = self.groups[group]
           if abs(nj - gj) + abs(ni - gi) < gsize:
@@ -207,15 +206,18 @@ class Nurikabe(NurikabeIterators):
       option = base.copy()
       option.append("T%s%d" % (eg, d))
       option.append("t%s%s:%s" % (eg, ep, self.encodetree(d)))
-      option.append("t%s%s:%s" % (eg, en, self.encodetree(d - 1)))
       self.remove_nongroup_neigh(option, gn, pj, pi)
       for no, (oj, oi) in enumerate(self.iter_neigh(pj, pi, gn)):
-        if (nj, ni) != (oj, oi) and (oj, oi) in self.minmax[gn]:
-          omin, omax = self.minmax[gn][(oj, oi)]
+        if (oj, oi) in self.minmax[gn]:
           en = self.encodepos(oj, oi)
-          for d2 in range(omin, omax + 1):
-            if d2 < d - 1 or d2 > d + 1:
-              option.append("u%s%s%s:0" % (eg, en, self.encodetree(d2)))
+          if (nj, ni) == (oj, oi) or bits[no] == 1:
+            option.append("t%s%s:%s" % (eg, en, self.encodetree(d - 1)))
+            option.append("u%s%s%s:1" % (eg, en, self.encodetree(d - 1)))
+          else:
+            omin, omax = self.minmax[gn][(oj, oi)]
+            for d2 in range(omin, omax + 1):
+              if d2 not in [d - 1, d + 1]:
+                option.append("u%s%s%s:0" % (eg, en, self.encodetree(d2)))
       option.append("u%s%s" % (eg, ep))
       option.append("u%s%s%s:1" % (eg, ep, self.encodetree(d)))
       options.add(" ".join(sorted(option)))
