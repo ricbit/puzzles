@@ -209,7 +209,7 @@ class Nurikabe(NurikabeIterators):
   def decodegroup(self, gs):
     return ord(gs) - ord('A')
 
-  def remove_nongroup_neigh(self, option, gn, pj, pi):
+  def remove_nongroup_neigh(self, gn, pj, pi):
     ep = self.encodepos(pj, pi)
     for g, (gj, gi, gsize) in enumerate(self.groups):
       eg = self.encodegroup(g)
@@ -218,7 +218,7 @@ class Nurikabe(NurikabeIterators):
         if (pj, pi) in self.minmax[g]:
           cells = itertools.chain(cells, [(pj, pi)])
         for nj, ni in cells:
-          option.append("t%s%s:0" % (eg, self.encodepos(nj, ni)))
+          yield "t%s%s:0" % (eg, self.encodepos(nj, ni))
 
   def collect_seed(self, baseoption, gn, pj, pi):
     eg = self.encodegroup(gn)
@@ -227,46 +227,37 @@ class Nurikabe(NurikabeIterators):
     option.append("T%s%d" % (eg, 0))
     option.append("t%s%s:%s" % (eg, ep, self.encodetree(0)))
     option.append("u%s%s%s:1" % (eg, ep, self.encodetree(0)))
-    self.remove_nongroup_neigh(option, gn, pj, pi)
+    option.extend(self.remove_nongroup_neigh(gn, pj, pi))
     yield " ".join(option)
 
-  def build_tail_option(self, base, gn, pj, pi, nj, ni, d):
-    options = set()
+  def collect_tail(self, baseoption, gn, j, i):
+    mindist, maxdist = self.minmax[gn][(j, i)]
+    base = self.iter_neigh
+    group_range = lambda a, b: range(a, b + 1)
     eg = self.encodegroup(gn)
-    en = self.encodepos(nj, ni)
-    ep = self.encodepos(pj, pi)
-    for bits in itertools.product([0, 1], repeat=4):
-      option = base.copy()
-      option.append("T%s%d" % (eg, d))
-      option.append("t%s%s:%s" % (eg, ep, self.encodetree(d)))
-      self.remove_nongroup_neigh(option, gn, pj, pi)
-      for no, (oj, oi) in enumerate(self.iter_neigh(pj, pi, self.has_group(gn))):
-        en = self.encodepos(oj, oi)
-        if (nj, ni) == (oj, oi) or bits[no] == 1:
-          option.append("t%s%s:%s" % (eg, en, self.encodetree(d - 1)))
-          option.append("u%s%s%s:1" % (eg, en, self.encodetree(d - 1)))
-        else:
-          omin, omax = self.minmax[gn][(oj, oi)]
-          for d2 in range(omin, omax + 1):
-            if d2 not in [d, d + 1]:
-              option.append("u%s%s%s:0" % (eg, en, self.encodetree(d2)))
-      option.append("u%s%s" % (eg, ep))
-      option.append("u%s%s%s:1" % (eg, ep, self.encodetree(d)))
-      options.add(" ".join(sorted(option)))
-    yield from options
-
-  def collect_tail(self, baseoption, gn, pj, pi):
-    eg = self.encodegroup(gn)
-    ep = self.encodepos(pj, pi)
-    gj, gi, gsize = self.groups[gn]
-    mindist, maxdist = self.minmax[gn][(pj, pi)]
-    options = set()
-    for nj, ni in self.iter_neigh(pj, pi, self.has_group(gn)):
-      nmin, nmax = self.minmax[gn][(nj, ni)]
-      for d in range(mindist, maxdist + 1):
-        if nmin <= d - 1 <= nmax:
-          options.update(self.build_tail_option(baseoption, gn, pj, pi, nj, ni, d))
-    yield from options
+    ep = self.encodepos(j, i)
+    for d in range(mindist, maxdist + 1):
+      exist = lambda pos: d - 1 in group_range(*self.minmax[gn].get(pos, (-2, -2)))
+      for variation in self.iter_property(j, i, base=base, exist=exist):
+        option = baseoption.copy()
+        option.append("T%s%d" % (eg, d))
+        option.append("t%s%s:%s" % (eg, ep, self.encodetree(d)))
+        option.append("u%s%s" % (eg, ep))
+        option.append("u%s%s%s:1" % (eg, ep, self.encodetree(d)))
+        nongroup = set(self.remove_nongroup_neigh(gn, j, i))
+        for nj, ni, bit in variation:
+          en = self.encodepos(nj, ni)
+          if bit:
+            option.append("t%s%s:%s" % (eg, en, self.encodetree(d - 1)))
+            option.append("u%s%s%s:1" % (eg, en, self.encodetree(d - 1)))
+            nongroup.update(self.remove_nongroup_neigh(gn, nj, ni))
+          else:
+            nmin, nmax = self.minmax[gn][(nj, ni)]
+            for d2 in range(nmin, nmax + 1):
+              if d2 not in [d, d + 1]:
+                option.append("u%s%s%s:0" % (eg, en, self.encodetree(d2)))
+        option.extend(nongroup)
+        yield " ".join(option)
 
   def collect_groups(self):
     self.log("Collecting groups")
