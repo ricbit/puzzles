@@ -323,27 +323,21 @@ class Nurikabe(NurikabeIterators):
 
   def collect_filled_cross(self):
     self.log("Collecting filled crosses")
+    base = self.iter_neigh
+    zero = lambda pos: self.forced_empty(*pos)
     for j, i in itertools.product(range(self.h), range(self.w)):
       if (j, i) in self.seeds:
         if self.groups[self.seeds[(j, i)]][2] == 1:
           yield self.collect_single_one(j, i)
           continue
       if not self.forced_empty(j, i):
-        pos = self.encodepos(j, i)
-        options = set()
-        for nj, ni in self.iter_neigh(j, i):
-          if not self.forced_empty(nj, ni):
-            for bits in itertools.product([0, 1], repeat=4):
-              option = ["D%s" % pos]
-              option.append("p%s:1" % pos)
-              for n, (pj, pi) in enumerate(self.iter_neigh(j, i)):
-                ep = self.encodepos(pj, pi)
-                if (pj, pi) == (nj, ni):
-                  option.append("p%s:1" % ep)
-                else:
-                  option.append("p%s:%d" % (ep, bits[n]))
-              options.add(" ".join(sorted(option)))
-        yield from options
+        for variation in self.iter_property(j, i, base=base, zero=zero):
+          pos = self.encodepos(j, i)
+          option = ["D%s" % pos]
+          option.append("p%s:1" % pos)
+          for nj, ni, bit in variation:
+            option.append("p%s:%d" % (self.encodepos(nj, ni), bit))
+          yield " ".join(option)
 
   def collect_squares(self):
     self.log("Collecting squares")
