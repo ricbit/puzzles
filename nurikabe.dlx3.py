@@ -216,7 +216,7 @@ class Nurikabe(NurikabeIterators):
           else:
             omin, omax = self.minmax[gn][(oj, oi)]
             for d2 in range(omin, omax + 1):
-              if d2 not in [d - 1, d + 1]:
+              if d2 not in [d, d + 1]:
                 option.append("u%s%s%s:0" % (eg, en, self.encodetree(d2)))
       option.append("u%s%s" % (eg, ep))
       option.append("u%s%s%s:1" % (eg, ep, self.encodetree(d)))
@@ -228,13 +228,15 @@ class Nurikabe(NurikabeIterators):
     ep = self.encodepos(pj, pi)
     gj, gi, gsize = self.groups[gn]
     mindist, maxdist = self.minmax[gn][(pj, pi)]
+    options = set()
     for nj, ni in self.iter_neigh(pj, pi, gn):
       if (nj, ni) not in self.minmax[gn]:
         continue
       nmin, nmax = self.minmax[gn][(nj, ni)]
       for d in range(mindist, maxdist + 1):
         if nmin <= d - 1 <= nmax:
-          yield from self.build_tail_option(baseoption, gn, pj, pi, nj, ni, d)
+          options.update(self.build_tail_option(baseoption, gn, pj, pi, nj, ni, d))
+    yield from options
 
   def collect_groups(self):
     for gn, (gj, gi, gsize) in enumerate(self.groups):
@@ -317,6 +319,8 @@ class Nurikabe(NurikabeIterators):
     for j, i in dlx.iter_grid(self.h - 1, self.w - 1):
       base = ["S%s" % self.encodepos(j, i)]
       for bits in itertools.product([0, 1], repeat=4):
+        if not sum(bits):
+          continue
         option = base.copy()
         for n, (jj, ii) in enumerate(itertools.product([0, 1], repeat=2)):
           pos = j + jj, i + ii
