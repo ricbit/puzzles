@@ -3,6 +3,7 @@ import itertools
 import sys
 import collections
 import math
+import argparse
 
 def index(seq):
   for i, _ in enumerate(seq):
@@ -143,13 +144,17 @@ class Nurikabe(NurikabeIterators):
     self.minmax = builder.minmax
     self.treesize = builder.treesize
     self.candidates = builder.candidates
-    self.print_minmax()
+    self.loglevel = None
 
   def print_minmax(self):
     for g, minmax in enumerate(self.minmax):
       print(g, self.encodegroup(g), self.groups[g], self.treesize[g], file=sys.stderr)
       print("%s\n\n" % self.encode_matrix(minmax, " ", lambda x:
         self.encodetree(x[1]) + self.encodetree(x[0])), file=sys.stderr)
+
+  def log(self, message, level=1):
+    if self.loglevel and level <= self.loglevel:
+      print(message, file=sys.stderr)
 
   def forced_empty(self, j, i):
     return all((j, i) not in minmax for minmax in self.minmax)
@@ -239,7 +244,9 @@ class Nurikabe(NurikabeIterators):
     yield from options
 
   def collect_groups(self):
+    self.log("Collecting groups")
     for gn, (gj, gi, gsize) in enumerate(self.groups):
+      self.log("Collecting group %s" % gn, level=2)
       for pj, pi in self.minmax[gn]:
         eg = self.encodegroup(gn)
         ep = self.encodepos(pj, pi)
@@ -253,6 +260,7 @@ class Nurikabe(NurikabeIterators):
           yield from self.collect_tail(baseoption, gn, pj, pi)
 
   def collect_empty(self):
+    self.log("Collecting empty cells")
     for j, i in itertools.product(range(self.h), range(self.w)):
       if not self.forced_fill(j, i):
         option = ["E"]
@@ -266,6 +274,7 @@ class Nurikabe(NurikabeIterators):
         yield " ".join(option)
 
   def collect_empty_cross(self):
+    self.log("Collecting empty crosses")
     for j, i in itertools.product(range(self.h), range(self.w)):
       if not self.forced_fill(j, i):
         pos = self.encodepos(j, i)
@@ -293,6 +302,7 @@ class Nurikabe(NurikabeIterators):
     return " ".join(option)
 
   def collect_filled_cross(self):
+    self.log("Collecting filled crosses")
     for j, i in itertools.product(range(self.h), range(self.w)):
       if (j, i) in self.seeds:
         if self.groups[self.seeds[(j, i)]][2] == 1:
@@ -316,6 +326,7 @@ class Nurikabe(NurikabeIterators):
         yield from options
 
   def collect_squares(self):
+    self.log("Collecting squares")
     for j, i in dlx.iter_grid(self.h - 1, self.w - 1):
       base = ["S%s" % self.encodepos(j, i)]
       for bits in itertools.product([0, 1], repeat=4):
@@ -351,6 +362,7 @@ class Nurikabe(NurikabeIterators):
           yield " ".join(option)
 
   def collect_pairs(self):
+    self.log("Collecting directions")
     yield from self.collect_direction(
       self.h, self.w - 1, "H", lambda j, i, k: (j, i + k))
     yield from self.collect_direction(
@@ -398,18 +410,32 @@ class Nurikabe(NurikabeIterators):
     reverse = {v: k for k, v in items.items()}
     return [reverse[k] for k in sorted(reverse)]
 
+  def build_dlx(self, loglevel=None):
+    self.loglevel = loglevel
+    options = ["_W%d" % self.w, "_H%d" % self.h]
+    options.extend(self.collect_groups())
+    options.extend(self.collect_empty())
+    options.extend(self.collect_empty_cross())
+    options.extend(self.collect_filled_cross())
+    options.extend(self.collect_squares())
+    options.extend(self.collect_pairs())
+    self.log("Generating dlx")
+    return "\n".join(dlx.build_dlx(options, primary=self.collect_primary))
+
 def main():
+  parser = argparse.ArgumentParser(
+      description="Generate a nurikabe dlx file from a puzzle description")
+  parser.add_argument("--minmax", action="store_true",
+      help="Display the minmax table for each group")
+  parser.add_argument("--log", nargs="?", default=None, const=1, type=int,
+      help="Display the progress in each stage")
+  args = parser.parse_args()
   h, w = map(int, input().split())
   ngroups = int(input().strip())
   groups = [tuple(map(int, input().split())) for _ in range(ngroups)]
   solver = Nurikabe(h, w, groups)
-  options = ["_W%d" % w, "_H%d" % h]
-  options.extend(solver.collect_groups())
-  options.extend(solver.collect_empty())
-  options.extend(solver.collect_empty_cross())
-  options.extend(solver.collect_filled_cross())
-  options.extend(solver.collect_squares())
-  options.extend(solver.collect_pairs())
-  print("\n".join(dlx.build_dlx(options, primary=solver.collect_primary)))
+  if args.minmax:
+    solver.print_minmax()
+  print(solver.build_dlx(loglevel=args.log))
 
 main()
