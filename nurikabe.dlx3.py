@@ -90,7 +90,7 @@ class NurikabeBuilder(NurikabeIterators):
     for n, (gj, gi, gsize) in enumerate(self.groups):
       if n != group:
         forbidden[gj][gi] = True
-        for nj, ni in self.iter_neigh(gj, gi, self.dist_group(n)):
+        for nj, ni in self.iter_neigh(gj, gi, self.dist_group(group)):
           forbidden[nj][ni] = True
     return forbidden
 
