@@ -22,13 +22,6 @@ class NurikabeIterators:
     self.seeds = {(gj, gi): n for n, (gj, gi, _) in enumerate(groups)}
     self.disp = [x for x in itertools.product(range(-1, 2), repeat=2) if x.count(0) == 1]
 
-  def iter_group(self, gj, gi, gsize):
-    for j, i in itertools.product(range(1 - gsize, gsize), repeat=2):
-      if self.inside(gj + j, gi + i):
-        dist = abs(j) + abs(i)
-        if dist < gsize:
-          yield gj + j, gi + i, dist
-
   def iter_neigh(self, pj, pi, *mods):
     for jj, ii in self.disp:
       nj, ni = pj + jj, pi + ii
@@ -36,14 +29,19 @@ class NurikabeIterators:
         yield nj, ni
 
   def iter_valid_minmax(self, gn, j, i):
+    gj, gi, _ = self.groups[gn]
     mindist, maxdist = self.minmax[gn][(j, i)]
     for d in range(mindist, maxdist + 1):
-      yield d
+      if self.parity_check(gj, gi, j, i, d):
+        yield d
+
+  def dist(self, gj, gi, j, i):
+    return abs(j - gj) + abs(i - gi)
 
   def dist_group(self, group):
     def mod(nj, ni):
       gj, gi, gsize = self.groups[group]
-      return abs(nj - gj) + abs(ni - gi) < gsize
+      return self.dist(gj, gi, nj, ni) < gsize
     return mod
 
   def has_group(self, group):
@@ -81,6 +79,8 @@ class NurikabeIterators:
   def forced_empty(self, j, i):
     return all((j, i) not in minmax for minmax in self.minmax)
 
+  def parity_check(self, gj, gi, j, i, d):
+    return (self.dist(gj, gi, j, i) & 1) == (d & 1)
 
 class NurikabeBuilder(NurikabeIterators):
   def __init__(self, h, w, groups):
