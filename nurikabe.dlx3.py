@@ -53,6 +53,21 @@ class NurikabeIterators:
     for jj, ii in itertools.product([0, 1], repeat=2):
       yield (j + jj, i + ii)
 
+  def iter_rect(self, gn, pj, pi, slack):
+    gj, gi, _ = self.groups[gn]
+    jmin, jmax = min(gj, pj), max(gj, pj)
+    imin, imax = min(gi, pi), max(gi, pi)
+    jrange = range(jmin - slack, jmax + slack + 1)
+    irange = range(imin - slack, imax + slack + 1)
+    for j, i in itertools.product(jrange, irange):
+      if (j, i) in self.minmax[gn]:
+        yield (j, i)
+            
+  def iter_box(self, gn, pj, pi, d):            
+    gj, gi, _ = self.groups[gn]
+    slack = (self.dist(gj, gi, pj, pi) - d) // 2
+    yield from self.iter_rect(gn, pj, pi, slack)
+
   def iter_property(self, j, i, base,
       exist=lambda *_: True, one=lambda *_: False, zero=lambda *_: False):
     neighs = set(filter(exist, base(j, i)))
@@ -155,14 +170,14 @@ class NurikabeBuilder(NurikabeIterators):
   def build_treesize(self, gn):
     gj, gi, gsize = self.groups[gn]
     size = collections.Counter()
-    used = gsize
     for j, i in dlx.iter_grid(self.h, self.w):
       if (j, i) in self.minmax[gn]:
         gmin, gmax = self.minmax[gn][(j, i)]
         for d in range(gmin, gmax + 1):
           size[d] += 1
+    used = gsize
     treesize = []
-    for d in range(0, gsize):
+    for d in range(gsize):
       if used > 0:
         treesize.append((1, size[d]))
         used -= size[d]
@@ -243,6 +258,14 @@ class Nurikabe(NurikabeIterators):
       if d2 not in [d, d + 1]:
         yield "u%s%s%s:0" % (eg, en, self.encodetree(d2))
 
+  def remove_faraway_cells(self, gn, box, j, i, d):
+    gj, gi, gsize = self.groups[gn]
+    eg = self.encodegroup(gn)
+    rem = gsize - d
+    for pj, pi in self.minmax[gn]:
+      if all(self.dist(bj, bi, pj, pi) > rem for bj, bi in box):
+        yield "t%s%s:0" % (eg, self.encodepos(pj, pi))
+
   def collect_tail(self, baseoption, gn, j, i):
     mindist, maxdist = self.minmax[gn][(j, i)]
     base = self.iter_neigh
@@ -258,14 +281,17 @@ class Nurikabe(NurikabeIterators):
         option.append("u%s%s" % (eg, ep))
         option.append("u%s%s%s:1" % (eg, ep, self.encodetree(d)))
         nongroup = set(self.remove_nongroup_neigh(gn, j, i))
+        box = set([(j, i)])
         for nj, ni, bit in variation:
           if bit:
             en = self.encodepos(nj, ni)
             option.append("t%s%s:%s" % (eg, en, self.encodetree(d - 1)))
             option.append("u%s%s%s:1" % (eg, en, self.encodetree(d - 1)))
             nongroup.update(self.remove_nongroup_neigh(gn, nj, ni))
+            box.update(self.iter_box(gn, nj, ni, d - 1))
           else:
             option.extend(self.remove_group_neigh(gn, nj, ni, d))
+        #option.extend(self.remove_faraway_cells(gn, box, j, i, d))
         option.extend(nongroup)
         yield " ".join(option)
 
