@@ -230,6 +230,14 @@ class Nurikabe(NurikabeIterators):
     option.extend(self.remove_nongroup_neigh(gn, pj, pi))
     yield " ".join(option)
 
+  def remove_group_neigh(self, gn, nj, ni, d):
+    eg = self.encodegroup(gn)
+    en = self.encodepos(nj, ni)
+    nmin, nmax = self.minmax[gn][(nj, ni)]
+    for d2 in range(nmin, nmax + 1):
+      if d2 not in [d, d + 1]:
+        yield "u%s%s%s:0" % (eg, en, self.encodetree(d2))
+
   def collect_tail(self, baseoption, gn, j, i):
     mindist, maxdist = self.minmax[gn][(j, i)]
     base = self.iter_neigh
@@ -246,16 +254,13 @@ class Nurikabe(NurikabeIterators):
         option.append("u%s%s%s:1" % (eg, ep, self.encodetree(d)))
         nongroup = set(self.remove_nongroup_neigh(gn, j, i))
         for nj, ni, bit in variation:
-          en = self.encodepos(nj, ni)
           if bit:
+            en = self.encodepos(nj, ni)
             option.append("t%s%s:%s" % (eg, en, self.encodetree(d - 1)))
             option.append("u%s%s%s:1" % (eg, en, self.encodetree(d - 1)))
             nongroup.update(self.remove_nongroup_neigh(gn, nj, ni))
           else:
-            nmin, nmax = self.minmax[gn][(nj, ni)]
-            for d2 in range(nmin, nmax + 1):
-              if d2 not in [d, d + 1]:
-                option.append("u%s%s%s:0" % (eg, en, self.encodetree(d2)))
+            option.extend(self.remove_group_neigh(gn, nj, ni, d))
         option.extend(nongroup)
         yield " ".join(option)
 
