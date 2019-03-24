@@ -65,7 +65,7 @@ class NurikabeIterators:
             
   def iter_box(self, gn, pj, pi, d):            
     gj, gi, _ = self.groups[gn]
-    slack = (self.dist(gj, gi, pj, pi) - d) // 2
+    slack = (d - self.dist(gj, gi, pj, pi)) // 2
     yield from self.iter_rect(gn, pj, pi, slack)
 
   def iter_property(self, j, i, base,
@@ -96,6 +96,7 @@ class NurikabeIterators:
 
   def parity_check(self, gj, gi, j, i, d):
     return (self.dist(gj, gi, j, i) & 1) == (d & 1)
+
 
 class NurikabeBuilder(NurikabeIterators):
   def __init__(self, h, w, groups):
@@ -263,8 +264,9 @@ class Nurikabe(NurikabeIterators):
     eg = self.encodegroup(gn)
     rem = gsize - d
     for pj, pi in self.minmax[gn]:
-      if all(self.dist(bj, bi, pj, pi) > rem for bj, bi in box):
-        yield "t%s%s:0" % (eg, self.encodepos(pj, pi))
+      if (pj, pi) not in box:
+        if all(self.dist(bj, bi, pj, pi) > rem for bj, bi in box):
+          yield "t%s%s:0" % (eg, self.encodepos(pj, pi))
 
   def collect_tail(self, baseoption, gn, j, i):
     mindist, maxdist = self.minmax[gn][(j, i)]
@@ -291,7 +293,7 @@ class Nurikabe(NurikabeIterators):
             box.update(self.iter_box(gn, nj, ni, d - 1))
           else:
             option.extend(self.remove_group_neigh(gn, nj, ni, d))
-        #option.extend(self.remove_faraway_cells(gn, box, j, i, d))
+        option.extend(self.remove_faraway_cells(gn, box, j, i, d))
         option.extend(nongroup)
         yield " ".join(option)
 
