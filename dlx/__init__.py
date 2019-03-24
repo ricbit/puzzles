@@ -73,6 +73,19 @@ def parse_solutions(lines):
   if solution:
     yield solution
 
+def parse_partial_solutions(lines):
+  solution = []
+  for line in lines:
+    match = re.match(r"^L(\d+):\s+(.*)\s+\(\d+ of \d+\)", line)
+    if match:
+      n = int(match.group(1))
+      option = match.group(2)
+      if n >= len(solution):
+        solution.append(option)
+      else:
+        solution = solution[:n] + [option]
+      yield solution
+
 def iter_grid(height, width):
   for j, i in itertools.product(range(height), range(width)):
     yield (j, i)
