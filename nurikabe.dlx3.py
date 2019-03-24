@@ -35,6 +35,11 @@ class NurikabeIterators:
       if self.inside(nj, ni) and all(mod(nj, ni) for mod in mods):
         yield nj, ni
 
+  def iter_valid_minmax(self, gn, j, i):
+    mindist, maxdist = self.minmax[gn][(j, i)]
+    for d in range(mindist, maxdist + 1):
+      yield d
+
   def dist_group(self, group):
     def mod(nj, ni):
       gj, gi, gsize = self.groups[group]
@@ -244,7 +249,7 @@ class Nurikabe(NurikabeIterators):
     group_range = lambda a, b: range(a, b + 1)
     eg = self.encodegroup(gn)
     ep = self.encodepos(j, i)
-    for d in range(mindist, maxdist + 1):
+    for d in self.iter_valid_minmax(gn, j, i):
       exist = lambda pos: d - 1 in group_range(*self.minmax[gn].get(pos, (-2, -2)))
       for variation in self.iter_property(j, i, base=base, exist=exist):
         option = baseoption.copy()
