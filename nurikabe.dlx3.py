@@ -196,12 +196,23 @@ class Nurikabe(NurikabeIterators):
     self.minmax = builder.minmax
     self.treesize = builder.treesize
     self.candidates = builder.candidates
+    self.empty_seed = self.find_empty_seed()
     self.tree_limit = min(self.empty_size, dlx.ENCODEBASE - 1)
     self.loglevel = None
 
   def log(self, message, level=1):
     if self.loglevel and level <= self.loglevel:
       print(message, file=sys.stderr)
+
+  def find_empty_seed(self):
+    cur = (self.h + self.w + 1, (-1, -1))
+    mh = self.h // 2
+    mw = self.w // 2
+    for j, i in dlx.iter_grid(self.h, self.w):
+      if self.forced_empty(j, i):
+        cur = min(cur, (self.dist(mh, mw, j, i), (j, i)))
+    return cur[1]
+
 
   def encode_matrix(self, mat, spacer, encoder):
     ans = []
