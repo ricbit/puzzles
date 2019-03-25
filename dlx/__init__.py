@@ -2,6 +2,7 @@ import string
 import math
 import re
 import itertools
+import sys
 
 try:
   range = xrange
@@ -17,7 +18,7 @@ def _to_base(n, base, size):
   while n:
     ans[pos] = n % base
     pos -= 1
-    n /= base
+    n //= base
   return ans
 
 def encode(n, limit, basecache={}, ncache={}):
@@ -26,11 +27,15 @@ def encode(n, limit, basecache={}, ncache={}):
   if limit in basecache:
     size = basecache[limit]
   else:
+    # OB1 here
     size = int(math.floor(math.log(limit, ENCODEBASE))) + 1
     basecache[limit] = size
   ans = "".join(PRINTABLE[x] for x in _to_base(n, ENCODEBASE, size))
   ncache[(n, limit)] = ans
   return ans
+
+def decode(single):
+  return self.PRINTABLE.index(single)
 
 def _collect_primary(options):
   items = set()

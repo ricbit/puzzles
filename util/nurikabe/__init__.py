@@ -48,6 +48,16 @@ def draw(solution):
         if g == pos.get((j, i), -1):
           tree[i][j] = v
   for line in solution:
+    if not any(item.startswith("R") for item in line.split()):
+      continue
+    for item in line.split(" "):
+      match = re.match(r"^r(\d\d)(\d\d):(.)", item)
+      if match:
+        j = int(match.group(1))
+        i = int(match.group(2))
+        v = match.group(3)
+        tree[i][j] = v
+  for line in solution:
     if not any(item.startswith("E") for item in line.split()):
       continue
     for item in line.split(" "):
@@ -55,7 +65,6 @@ def draw(solution):
       if match:
         j = int(match.group(1))
         i = int(match.group(2))
-        tree[i][j] = "+"
         grid[i][j] = "+"
   for line in solution:
     for item in line.split(" "):
