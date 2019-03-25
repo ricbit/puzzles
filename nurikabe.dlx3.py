@@ -69,13 +69,14 @@ class NurikabeIterators:
     yield from self.iter_rect(gn, pj, pi, slack)
 
   def iter_property(self, j, i, base,
-      exist=lambda *_: True, one=lambda *_: False, zero=lambda *_: False):
+      exist=lambda *_: True, one=lambda *_: False, zero=lambda *_: False,
+      minbits=1, maxbits=4):
     neighs = set(filter(exist, base(j, i)))
     ones = set(filter(one, neighs))
     zeros = set(filter(zero, neighs))
     rem = neighs - ones - zeros
     for bits in itertools.product([0, 1], repeat=len(rem)):
-      if sum(bits) + len(ones) > 0:
+      if minbits <= sum(bits) + len(ones) <= maxbits:
         def iter_props():
           for (j, i), bit in zip(rem, bits):
             yield (j, i, bit)
@@ -276,7 +277,7 @@ class Nurikabe(NurikabeIterators):
     ep = self.encodepos(j, i)
     for d in self.iter_valid_minmax(gn, j, i):
       exist = lambda pos: d - 1 in group_range(*self.minmax[gn].get(pos, (-2, -2)))
-      for variation in self.iter_property(j, i, base=base, exist=exist):
+      for variation in self.iter_property(j, i, base=base, exist=exist, maxbits=2):
         option = baseoption.copy()
         option.append("T%s%d" % (eg, d))
         option.append("t%s%s:%s" % (eg, ep, self.encodetree(d)))

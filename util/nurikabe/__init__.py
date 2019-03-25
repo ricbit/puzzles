@@ -1,6 +1,12 @@
 import collections
 import re
 
+def encodesize(size):
+  if size < 10:
+    return str(size)
+  else:
+    return chr(ord('A') + size - 10)
+
 def draw(solution):
   h, w = None, None
   for line in solution:
@@ -28,7 +34,7 @@ def draw(solution):
         groups[g] += 1
         pos[(j, i)] = g
   for p, g in pos.items():
-    grid[p[1]][p[0]] = groups[g]
+    grid[p[1]][p[0]] = encodesize(groups[g])
   for line in solution:
     if not any(item.startswith("G") for item in line.split()):
       continue
