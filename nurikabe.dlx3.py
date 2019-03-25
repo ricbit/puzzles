@@ -196,13 +196,8 @@ class Nurikabe(NurikabeIterators):
     self.minmax = builder.minmax
     self.treesize = builder.treesize
     self.candidates = builder.candidates
+    self.tree_limit = min(self.empty_size, dlx.ENCODEBASE - 1)
     self.loglevel = None
-
-  def print_minmax(self):
-    for g, minmax in enumerate(self.minmax):
-      print(g, self.encodegroup(g), self.groups[g], self.treesize[g], file=sys.stderr)
-      print("%s\n\n" % self.encode_matrix(minmax, " ", lambda x:
-        self.encodetree(x[1]) + self.encodetree(x[0])), file=sys.stderr)
 
   def log(self, message, level=1):
     if self.loglevel and level <= self.loglevel:
@@ -226,7 +221,7 @@ class Nurikabe(NurikabeIterators):
       return "0"
 
   def encodetree(self, depth):
-    return chr(ord('a') + depth)
+    return dlx.encode(depth + 1, self.tree_limit)
 
   def decodegroup(self, gs):
     return ord(gs) - ord('A')
@@ -439,6 +434,12 @@ class Nurikabe(NurikabeIterators):
           items.setdefault(item, len(items))
     reverse = {v: k for k, v in items.items()}
     return [reverse[k] for k in sorted(reverse)]
+
+  def print_minmax(self):
+    for g, minmax in enumerate(self.minmax):
+      print(g, self.encodegroup(g), self.groups[g], self.treesize[g], file=sys.stderr)
+      print("%s\n\n" % self.encode_matrix(minmax, " ", lambda x:
+        self.encodetree(x[1]) + self.encodetree(x[0])), file=sys.stderr)
 
   def build_dlx(self, loglevel=None):
     self.loglevel = loglevel
