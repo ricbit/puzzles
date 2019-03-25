@@ -2,6 +2,16 @@ solutions/*
 *.html
 *.txt
 *.dlx 
+*.png
+*.dot
+*.pyc
+*__pycache*
+lixo*
+scip
+taocp/*
+words/*
+experiments/*
+util/dlx
 slither.cp
 snail.human
 stars.cover
