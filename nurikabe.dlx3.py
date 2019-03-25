@@ -390,8 +390,9 @@ class Nurikabe(NurikabeIterators):
           option = base.copy()
           eg1 = self.encodegroup(g1)
           eg2 = self.encodegroup(g2)
-          if g1 == g2 and g1 != -1:
-            option.append("EDGE%s" % eg1)
+          if g1 == g2:
+            edge = eg1 if g1 != -1 else "@"
+            option.append("EDGE%s" % edge)
           option.append("g%s:%s" % (ep, eg1))
           option.append("g%s:%s" % (self.encodepos(*move(j, i, 1)), eg2))
           option.append("p%s:%s" % (ep, int(g1 >= 0)))
@@ -405,6 +406,12 @@ class Nurikabe(NurikabeIterators):
     yield from self.collect_direction(
       self.h - 1, self.w, "V", lambda j, i, k: (j + k, i))
 
+  def minmax_edges(self, gsize):
+    # Max edges is given by A123663
+    minedges = gsize - 1
+    maxedges = 2 * gsize - int(math.ceil(2 * gsize ** 0.5))
+    return minedges, maxedges
+
   def collect_primary(self, options):
     items = {}
     empty = self.empty_size
@@ -414,11 +421,14 @@ class Nurikabe(NurikabeIterators):
           gn = self.decodegroup(item[1:])
           items.setdefault("%d|%s" % (self.groups[gn][2], item), len(items))
         elif item.startswith("EDGE"):
-          gn = self.decodegroup(item[4])
-          _, _, gsize = self.groups[gn]
-          # Max edges is given by A123663
-          maxedges = 2 * gsize - int(math.ceil(2 * gsize ** 0.5))
-          items.setdefault("%d:%d|%s" % (gsize - 1, maxedges, item), len(items))
+          edge = item[4]
+          if edge == "@":
+            gsize = self.empty_size
+          else:
+            gn = self.decodegroup(edge)
+            _, _, gsize = self.groups[gn]
+          minedges, maxedges = self.minmax_edges(gsize)
+          items.setdefault("%d:%d|%s" % (minedges, maxedges, item), len(items))
         elif item.startswith("E"):
           items.setdefault("%d|%s" % (empty, item), len(items))
         elif item.startswith("T"):
