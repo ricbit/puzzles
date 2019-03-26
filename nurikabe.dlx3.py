@@ -20,7 +20,11 @@ class NurikabeIterators:
     self.groups = groups
     self.minmax = None
     self.seeds = {(gj, gi): n for n, (gj, gi, _) in enumerate(groups)}
-    self.disp = [x for x in itertools.product(range(-1, 2), repeat=2) if x.count(0) == 1]
+    self.disp = self.build_displacement()
+
+  def build_displacement(self):
+    it = itertools.product(range(-1, 2), repeat=2)
+    return [x for x in it if x.count(0) == 1]
 
   def iter_neigh(self, pj, pi, *mods):
     for jj, ii in self.disp:
@@ -62,8 +66,8 @@ class NurikabeIterators:
     for j, i in itertools.product(jrange, irange):
       if (j, i) in self.minmax[gn]:
         yield (j, i)
-            
-  def iter_box(self, gn, pj, pi, d):            
+
+  def iter_box(self, gn, pj, pi, d):
     gj, gi, _ = self.groups[gn]
     slack = (d - self.dist(gj, gi, pj, pi)) // 2
     yield from self.iter_rect(gn, pj, pi, slack)
