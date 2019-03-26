@@ -76,7 +76,8 @@ class NurikabeIterators:
     zeros = set(filter(zero, neighs))
     rem = neighs - ones - zeros
     for bits in itertools.product([0, 1], repeat=len(rem)):
-      if minbits <= sum(bits) + len(ones) <= maxbits:
+      total = sum(bits) + len(ones)
+      if minbits <= total <= maxbits:
         def iter_props():
           for (j, i), bit in zip(rem, bits):
             yield (j, i, bit)
@@ -84,7 +85,7 @@ class NurikabeIterators:
             yield (j, i, 1)
           for j, i in zeros:
             yield (j, i, 0)
-        yield iter_props()
+        yield (iter_props(), total)
 
   def inside(self, j, i):
     return 0 <= j < self.h and 0 <= i < self.w
@@ -283,7 +284,7 @@ class Nurikabe(NurikabeIterators):
     ep = self.encodepos(j, i)
     for d in self.iter_valid_minmax(gn, j, i):
       exist = lambda pos: d - 1 in group_range(*self.minmax[gn].get(pos, (-2, -2)))
-      for variation in self.iter_property(j, i, base=base, exist=exist, maxbits=2):
+      for variation, _ in self.iter_property(j, i, base=base, exist=exist, maxbits=2):
         option = baseoption.copy()
         option.append("T%s%d" % (eg, d))
         option.append("t%s%s:%s" % (eg, ep, self.encodetree(d)))
@@ -334,6 +335,33 @@ class Nurikabe(NurikabeIterators):
             option.append("t%s%s:0" % (self.encodegroup(gn), pos))
         yield " ".join(option)
 
+  def collect_empty_seeds(self):
+    self.log("Collecting empty seeds")
+    baseiter = self.iter_neigh
+    zero = lambda pos: self.forced_fill(*pos)
+    for j, i in itertools.product(range(self.h), range(self.w)):
+      if not self.forced_fill(j, i):
+        pos = self.encodepos(j, i)
+        yield "R%s p%s:1" % (pos, pos)
+        base = ["R%s" % pos]
+        base.append("p%s:0" % pos)
+        for variation, _ in self.iter_property(j, i, base=baseiter, zero=zero):
+          neighs = list(variation)
+          bits = sum(bit for _, _, bit in neighs)
+          if bits == 1:
+            option = base.copy()
+            option.append("r%s:%s" % (pos, self.encodetree(0)))
+            option.append("x%s:1" % (pos))
+            for pj, pi, bit in neighs:
+              option.append("p%s:%d" % (self.encodepos(pj, pi), 1 - bit))
+            yield " ".join(option)
+          else:
+            option = base.copy()
+            option.append("x%s:0" % (pos))
+            for pj, pi, bit in neighs:
+              option.append("p%s:%d" % (self.encodepos(pj, pi), 1 - bit))
+            yield " ".join(option)
+
   def collect_empty_cross(self):
     self.log("Collecting empty crosses")
     base = self.iter_neigh
@@ -341,7 +369,7 @@ class Nurikabe(NurikabeIterators):
     for j, i in itertools.product(range(self.h), range(self.w)):
       if not self.forced_fill(j, i):
         pos = self.encodepos(j, i)
-        for variation in self.iter_property(j, i, base=base, zero=zero):
+        for variation, _ in self.iter_property(j, i, base=base, zero=zero):
           option = ["D%s" % pos]
           option.append("p%s:0" % pos)
           for nj, ni, bit in variation:
@@ -366,7 +394,7 @@ class Nurikabe(NurikabeIterators):
           yield self.collect_single_one(j, i)
           continue
       if not self.forced_empty(j, i):
-        for variation in self.iter_property(j, i, base=base, zero=zero):
+        for variation, _ in self.iter_property(j, i, base=base, zero=zero):
           pos = self.encodepos(j, i)
           option = ["D%s" % pos]
           option.append("p%s:1" % pos)
@@ -380,7 +408,7 @@ class Nurikabe(NurikabeIterators):
     one = lambda pos: self.forced_fill(*pos)
     zero = lambda pos: self.forced_empty(*pos)
     for j, i in dlx.iter_grid(self.h - 1, self.w - 1):
-      for variation in self.iter_property(j, i, base=base, one=one, zero=zero):
+      for variation, _ in self.iter_property(j, i, base=base, one=one, zero=zero):
         option = ["S%s" % self.encodepos(j, i)]
         for pj, pi, bit in variation:
           option.append("p%s:%d" % (self.encodepos(pj, pi), bit))
@@ -457,6 +485,7 @@ class Nurikabe(NurikabeIterators):
     options = ["_W%d" % self.w, "_H%d" % self.h]
     options.extend(self.collect_groups())
     options.extend(self.collect_empty())
+    options.extend(self.collect_empty_seeds())
     options.extend(self.collect_empty_cross())
     options.extend(self.collect_filled_cross())
     options.extend(self.collect_squares())

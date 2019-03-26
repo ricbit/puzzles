@@ -48,7 +48,7 @@ def draw(solution):
         if g == pos.get((j, i), -1):
           tree[i][j] = v
   for line in solution:
-    if not any(item.startswith("R") for item in line.split()):
+    if not any(item[0] in ["R", "Q"] for item in line.split()):
       continue
     for item in line.split(" "):
       match = re.match(r"^r(\d\d)(\d\d):(.)", item)
