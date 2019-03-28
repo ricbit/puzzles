@@ -4,6 +4,6 @@ import nurikabe
 
 def main():
   for solution in dlx.parse_solutions(sys.stdin):
-    print(nurikabe.draw(solution))
+    print("%s\n\n" % nurikabe.draw(solution))
 
 main()
