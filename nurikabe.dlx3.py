@@ -1,3 +1,5 @@
+#!/usr/bin/python3
+
 import dlx
 import itertools
 import sys
@@ -206,7 +208,7 @@ class Nurikabe(NurikabeIterators):
     self.treesize = builder.treesize
     self.candidates = builder.candidates
     self.empty_seed = self.find_empty_seed()
-    self.tree_limit = 10 # min(self.empty_size, dlx.ENCODEBASE - 1)
+    self.tree_limit = 20 # min(self.empty_size, dlx.ENCODEBASE - 1)
     self.loglevel = None
 
   def log(self, message, level=1):
@@ -345,7 +347,7 @@ class Nurikabe(NurikabeIterators):
 
   def collect_unary_depth(self, pos, depth):
     for d in range(self.tree_limit):
-      yield "u%s%s:%d" % (pos, self.encodetree(d), int(d >= depth))
+      yield "v%s%s:%d" % (pos, self.encodetree(d), int(d > depth))
 
   def collect_empty_seeds(self, base, neighs, pos):
     option = base.copy()
@@ -355,26 +357,73 @@ class Nurikabe(NurikabeIterators):
       option.append("p%s:%d" % (self.encodepos(pj, pi), 1 - bit))
     yield " ".join(option)
 
+  def iter_chosen(self, neighs, bits):
+    for chosen, _ in self.iter_bits(bits, 0, minbits=1, maxbits=bits - 1):
+      def iter_chosen_bits():
+        pos = 0
+        for pj, pi, bit in neighs:
+          if bit == 0:
+            yield (pj, pi, bit, 0)
+          else:
+            yield (pj, pi, bit, chosen[pos])
+            pos += 1
+      yield iter_chosen_bits()
+
   def collect_empty_edges(self, base, neighs, pos, bits):
     for d in range(1, self.tree_limit):
       option = base.copy()
       option.append("r%s:%s" % (pos, self.encodetree(d)))
-      option.extend(self.collect_unary_depth(pos, d))
-      for pj, pi, bit in neighs:
-        option.append("p%s:%d" % (self.encodepos(pj, pi), 1 - bit))
-      yield " ".join(option)
+      for variation in self.iter_chosen(neighs, bits):
+        v = list(variation)
+        inner = option.copy()
+        for (pj, pi, bit, chosen) in v:
+          inner.append("p%s:%d" % (self.encodepos(pj, pi), 1 - bit))
+          if bit:
+            if chosen:
+              inner.append("v%s%s:0" % (self.encodepos(pj, pi), self.encodetree(d - 1)))
+              inner.append("v%s%s:1" % (self.encodepos(pj, pi), self.encodetree(d)))
+            else:
+              inner.append("v%s%s:0" % (self.encodepos(pj, pi), self.encodetree(d + 1)))
+        yield " ".join(inner)
+
+  def collect_unary(self):
+    self.log("Collecting unary")
+    for j, i in itertools.product(range(self.h), range(self.w)):
+      if not self.forced_fill(j, i):
+        pos = self.encodepos(j, i)
+        if not self.forced_empty(j, i):
+          yield "U%s p%s:1" % (pos, pos)
+        for d in range(self.tree_limit):
+          option = ["U%s" % pos]
+          option.append("p%s:0" % pos)
+          option.append("r%s:%s" % (pos, self.encodetree(d)))
+          option.extend(self.collect_unary_depth(pos, d))
+          yield " ".join(option)
+
+  def empty_central(self, j, i):
+    pos = self.encodepos(j, i)
+    option = ["R%s" % pos, "C"]
+    option.append("p%s:0" % pos)
+    option.extend(self.collect_unary_depth(pos, self.tree_limit))
+    option.append("r%s:%s" % (pos, self.encodetree(self.tree_limit)))
+    return " ".join(option)
 
   def collect_empty_tree(self):
     self.log("Collecting empty seeds")
     baseiter = self.iter_neigh
     zero = lambda pos: self.forced_fill(*pos)
+    one = lambda pos: self.forced_empty(*pos)
     for j, i in itertools.product(range(self.h), range(self.w)):
       if not self.forced_fill(j, i):
+        if (j, i) == self.empty_seed:
+          yield self.empty_central(j, i)
+          continue
         pos = self.encodepos(j, i)
         yield "R%s p%s:1" % (pos, pos)
         base = ["R%s" % pos]
         base.append("p%s:0" % pos)
-        for variation, bits in self.iter_property(j, i, base=baseiter, zero=zero):
+        variations = self.iter_property(j, i, base=baseiter, zero=zero, one=one)
+        for variation, bits in variations:
           neighs = list(variation)
           if bits == 1:
             yield from self.collect_empty_seeds(base, neighs, pos)
@@ -385,10 +434,11 @@ class Nurikabe(NurikabeIterators):
     self.log("Collecting empty crosses")
     base = self.iter_neigh
     zero = lambda pos: self.forced_fill(*pos)
+    one = lambda pos: self.forced_empty(*pos)
     for j, i in itertools.product(range(self.h), range(self.w)):
       if not self.forced_fill(j, i):
         pos = self.encodepos(j, i)
-        for variation, _ in self.iter_property(j, i, base=base, zero=zero):
+        for variation, _ in self.iter_property(j, i, base=base, zero=zero, one=one):
           option = ["D%s" % pos]
           option.append("p%s:0" % pos)
           for nj, ni, bit in variation:
@@ -505,6 +555,7 @@ class Nurikabe(NurikabeIterators):
     options.extend(self.collect_groups())
     options.extend(self.collect_empty())
     options.extend(self.collect_empty_tree())
+    options.extend(self.collect_unary())
     options.extend(self.collect_empty_cross())
     options.extend(self.collect_filled_cross())
     options.extend(self.collect_squares())

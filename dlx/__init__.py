@@ -80,7 +80,12 @@ def parse_solutions(lines):
 
 def parse_partial_solutions(lines):
   solution = []
+  last_branch = ""
   for line in lines:
+    match = re.match(r"^Level.*branching on (.*)$", line)
+    if match:
+      last_branch = match.group(1)
+      continue
     match = re.match(r"^L(\d+):\s+(.*)\s+\(\d+ of \d+\)", line)
     if match:
       n = int(match.group(1))
@@ -89,7 +94,7 @@ def parse_partial_solutions(lines):
         solution.append(option)
       else:
         solution = solution[:n] + [option]
-      yield solution
+      yield solution, last_branch
 
 def iter_grid(height, width):
   for j, i in itertools.product(range(height), range(width)):
