@@ -359,6 +359,7 @@ class Nurikabe(NurikabeIterators):
   def collect_empty_seeds(self, base, neighs, pos):
     option = base.copy()
     option.append("s%s:1" % pos)
+    option.append("y%s:s" % pos)
     for pj, pi, bit in neighs:
       option.append("p%s:%d" % (self.encodepos(pj, pi), 1 - bit))
       if bit:
@@ -371,6 +372,7 @@ class Nurikabe(NurikabeIterators):
     for pj, pi, bit in neighs:
       option.append("p%s:%d" % (self.encodepos(pj, pi), 1 - bit))
     empties = [(pj, pi) for pj, pi, bit in neighs if bit == 1]
+    option.append("y%s:%s" % (pos, "e" if len(empties) == 2 else "x"))
     for seeds, edges in self.iter_subsets(empties, 2):
       inner = option.copy()
       if not edges:
@@ -381,24 +383,11 @@ class Nurikabe(NurikabeIterators):
         inner.append("s%s:0" % self.encodepos(pj, pi))
       yield " ".join(inner)
 
-  def collect_unary(self):
-    self.log("Collecting unary")
-    for j, i in itertools.product(range(self.h), range(self.w)):
-      if not self.forced_fill(j, i):
-        pos = self.encodepos(j, i)
-        if not self.forced_empty(j, i):
-          yield "U%s p%s:1" % (pos, pos)
-        for d in range(self.tree_limit):
-          option = ["U%s" % pos]
-          option.append("p%s:0" % pos)
-          option.append("r%s:%s" % (pos, self.encodetree(d)))
-          option.extend(self.collect_unary_depth(pos, d))
-          yield " ".join(option)
-
   def empty_central(self, j, i):
     pos = self.encodepos(j, i)
     option = ["R%s" % pos, "C"]
     option.append("p%s:0" % pos)
+    option.append("y%s:c" % pos)
     return " ".join(option)
 
   def collect_empty_tree(self):
