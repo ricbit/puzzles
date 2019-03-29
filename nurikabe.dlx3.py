@@ -255,6 +255,9 @@ class Nurikabe(NurikabeIterators):
   def decodegroup(self, gs):
     return ord(gs) - ord('A')
 
+  def item_group_tree(self, group, pos, tree):
+    return "t%s%s:%s" % (group, pos, tree)
+
   def remove_nongroup_neigh(self, gn, pj, pi):
     ep = self.encodepos(pj, pi)
     for g, (gj, gi, gsize) in enumerate(self.groups):
@@ -264,14 +267,14 @@ class Nurikabe(NurikabeIterators):
         if (pj, pi) in self.minmax[g]:
           cells = itertools.chain(cells, [(pj, pi)])
         for nj, ni in cells:
-          yield "t%s%s:0" % (eg, self.encodepos(nj, ni))
+          yield self.item_group_tree(eg, self.encodepos(nj, ni), 0)
 
   def collect_seed(self, baseoption, gn, pj, pi):
     eg = self.encodegroup(gn)
     ep = self.encodepos(pj, pi)
     option = baseoption.copy()
     option.append("T%s%d" % (eg, 0))
-    option.append("t%s%s:%s" % (eg, ep, self.encodetree(0)))
+    option.append(self.item_group_tree(eg, ep, self.encodetree(0)))
     option.append("u%s%s%s:1" % (eg, ep, self.encodetree(0)))
     option.extend(self.remove_nongroup_neigh(gn, pj, pi))
     yield " ".join(option)
@@ -291,7 +294,7 @@ class Nurikabe(NurikabeIterators):
     for pj, pi in self.minmax[gn]:
       if (pj, pi) not in box:
         if all(self.dist(bj, bi, pj, pi) > rem for bj, bi in box):
-          yield "t%s%s:0" % (eg, self.encodepos(pj, pi))
+          yield self.item_group_tree(eg, self.encodepos(pj, pi), 0)
 
   def collect_tail(self, baseoption, gn, j, i):
     mindist, maxdist = self.minmax[gn][(j, i)]
@@ -304,7 +307,7 @@ class Nurikabe(NurikabeIterators):
       for variation, _ in self.iter_property(j, i, base=base, exist=exist, maxbits=2):
         option = baseoption.copy()
         option.append("T%s%d" % (eg, d))
-        option.append("t%s%s:%s" % (eg, ep, self.encodetree(d)))
+        option.append(self.item_group_tree(eg, ep, self.encodetree(d)))
         option.append("u%s%s" % (eg, ep))
         option.append("u%s%s%s:1" % (eg, ep, self.encodetree(d)))
         nongroup = set(self.remove_nongroup_neigh(gn, j, i))
@@ -312,7 +315,7 @@ class Nurikabe(NurikabeIterators):
         for nj, ni, bit in variation:
           if bit:
             en = self.encodepos(nj, ni)
-            option.append("t%s%s:%s" % (eg, en, self.encodetree(d - 1)))
+            option.append(self.item_group_tree(eg, en, self.encodetree(d - 1)))
             option.append("u%s%s%s:1" % (eg, en, self.encodetree(d - 1)))
             nongroup.update(self.remove_nongroup_neigh(gn, nj, ni))
             box.update(self.iter_box(gn, nj, ni, d - 1))
@@ -349,7 +352,7 @@ class Nurikabe(NurikabeIterators):
         option.append("P%s" % pos)
         for gn in index(self.groups):
           if (j, i) in self.minmax[gn]:
-            option.append("t%s%s:0" % (self.encodegroup(gn), pos))
+            option.append(self.item_group_tree(self.encodegroup(gn), pos, 0))
         yield " ".join(option)
 
   def collect_unary_depth(self, pos, depth):
