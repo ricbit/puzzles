@@ -256,7 +256,7 @@ class Nurikabe(NurikabeIterators):
     return ord(gs) - ord('A')
 
   def item_group_tree(self, group, pos, tree):
-    return "t%s%s:%s" % (group, pos, tree)
+    return "t%s%s:%s" % (pos, group, tree)
 
   def remove_nongroup_neigh(self, gn, pj, pi):
     ep = self.encodepos(pj, pi)

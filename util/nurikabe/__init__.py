@@ -1,8 +1,11 @@
 import collections
 import re
 import argparse
+import itertools
 
 def encodesize(size):
+  if not size:
+    return "-"
   if size < 10:
     return str(size)
   else:
@@ -11,7 +14,19 @@ def encodesize(size):
 def matrix(h, w, default):
   return [[default] * w for _ in range(h)]
 
-def draw(solution):
+def iter_item(solution, start, regexp):
+  for line in solution:
+    items = line.split()
+    if any(item.startswith(start) for item in items):
+      for item in items:
+        match = re.search(regexp, item)
+        if match:
+          groups = list(match.groups())
+          for i in range(2):
+            groups[i] = int(groups[i])
+          yield groups
+
+def get_size(solution):
   h, w = None, None
   for line in solution:
     match = re.search(r"_W(\d+)", line)
@@ -20,72 +35,45 @@ def draw(solution):
     match = re.search(r"_H(\d+)", line)
     if match:
       w = int(match.group(1))
+  return h, w
+
+def draw(solution):
+  h, w = get_size(solution)
   if not h or not w:
     return ""
-  grid = matrix(h, w, ".")
-  tree = matrix(h, w, ".")
-  types = matrix(h, w, ".")
-  pos = {}
+
+  default = "."
+  grid = matrix(h, w, default)
+  tree = matrix(h, w, default)
+  types = matrix(h, w, default)
   groups = collections.Counter()
-  for line in solution:
-    if not any(item.startswith("G") for item in line.split()):
-      continue
-    for item in line.split(" "):
-      match = re.search(r"(?<!\w)g(\d\d)(\d\d):(.)", item)
-      if match and match.group(3)[0] != "0":
-        j = int(match.group(1))
-        i = int(match.group(2))
-        g = match.group(3)
-        groups[g] += 1
-        pos[(j, i)] = g
-  for p, g in pos.items():
-    grid[p[1]][p[0]] = encodesize(groups[g])
-  for line in solution:
-    if not any(item.startswith("G") for item in line.split()):
-      continue
-    for item in line.split(" "):
-      match = re.match(r"^t(.)(\d\d)(\d\d):(.)", item)
-      if match:
-        g = match.group(1) #ord(match.group(1)) - ord('A')
-        j = int(match.group(2))
-        i = int(match.group(3))
-        v = match.group(4)
-        if g == pos.get((j, i), -1):
-          tree[i][j] = v
-  for line in solution:
-    if not any(item[0] in ["R"] for item in line.split()):
-      continue
-    for item in line.split(" "):
-      match = re.match(r"^r(\d\d)(\d\d):(.)", item)
-      if match:
-        j = int(match.group(1))
-        i = int(match.group(2))
-        v = match.group(3)
-        tree[i][j] = v
-      match = re.match(r"^t(\d\d)(\d\d):(.)", item)
-      if match:
-        j = int(match.group(1))
-        i = int(match.group(2))
-        v = match.group(3)
-        types[i][j] = v
-  for line in solution:
-    if not any(item.startswith("E") for item in line.split()):
-      continue
-    for item in line.split(" "):
-      match = re.match(r"^p(\d\d)(\d\d):0", item)
-      if match:
-        j = int(match.group(1))
-        i = int(match.group(2))
-        grid[i][j] = "-"
-  for line in solution:
-    for item in line.split(" "):
-      match = re.match(r"^p(\d\d)(\d\d):1", item)
-      if match:
-        j = int(match.group(1))
-        i = int(match.group(2))
-        if grid[i][j] == ".":
-          tree[i][j] = "?"
-          grid[i][j] = "?"
+
+  for j, i, group in iter_item(solution, "G", r"(?<!\w)g(\d\d)(\d\d):(.)"):
+    groups[group] += 1
+    grid[i][j] = group
+
+  for j, i, g, v in iter_item(solution, "G", r"^t(\d\d)(\d\d)(.):(.)"):
+    if grid[i][j] != default:
+      tree[i][j] = v
+
+  for j, i, v in iter_item(solution, "R", r"^r(\d\d)(\d\d):(.)"):
+    tree[i][j] = v
+
+  for j, i, v in iter_item(solution, "R", r"^y(\d\d)(\d\d):(.)"):
+    types[i][j] = v
+
+  for j, i in iter_item(solution, "E", r"^p(\d\d)(\d\d):0"):
+    grid[i][j] = "-"
+
+  for j, i in iter_item(solution, "", r"^p(\d\d)(\d\d):0"):
+    if grid[i][j] == default:
+      tree[i][j] = "?"
+      grid[i][j] = "?"
+
+  if not args.label:
+    for j, i in itertools.product(range(h), range(w)):
+      grid[i][j] = encodesize(groups[grid[i][j]])
+
   if args.empty:
     if args.type:
       return "\n".join(" %s" % " ".join(
@@ -106,5 +94,7 @@ except:
       help="Show empty tree")
   parser.add_argument("--type", action="store_true",
       help="Show empty type")
+  parser.add_argument("--label", action="store_true",
+      help="Show group label")
   args = parser.parse_args()
 
