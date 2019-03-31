@@ -118,6 +118,16 @@ class WordSearch:
       option.append("w%d_%d_%d:1" % (nw2, pj, pi))
       yield " ".join(option)
 
+  def collect_primary(self, options):
+    items = set()
+    for option in options:
+      for item in option.split(" "):
+        if item.startswith("C"):
+          items.add("1:%d|%s" % (len(self.words) - 1, item))
+        elif item[0].isupper():
+          items.add(item)
+    return items
+
   def solve(self):
     options = []
     options.append("DW%s" % self.size)
@@ -128,7 +138,7 @@ class WordSearch:
     if self.crossing:
       options.extend(self.collect_crossings())
     #options.extend(self.collect_word_numbers())
-    yield from dlx.build_dlx(options, sorted_items=True)
+    yield from dlx.build_dlx(options, primary=self.collect_primary, sorted_items=True)
 
 def main():
   parser = argparse.ArgumentParser(
