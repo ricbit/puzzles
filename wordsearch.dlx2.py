@@ -27,7 +27,7 @@ class WordSearch:
   def encode(self, j):
     return chr(65 + j)
 
-  def iter_words(self):
+  def iter_word_vector(self):
     for nw, word in enumerate(self.words):
       for j, i, jj, ii in self.iter_vector(word):
         sym = False
@@ -44,20 +44,24 @@ class WordSearch:
           sym = True
         yield nw, word, j, i, jj, ii, sym
 
+  def iter_word_letters(self, word, j, i, jj, ii):
+    for k, letter in enumerate(word):
+      pj = j + k * jj
+      pi = i + k * ii
+      yield k, pj, pi, letter
+
   def option_word(self, nw, word, j, i, jj, ii, sym):
     option = ["W%d" % nw]
     if sym:
       option.append("sym")
-    for k, letter in enumerate(word):
-      pj = j + k * jj
-      pi = i + k * ii
+    for k, pj, pi, letter in self.iter_word_letters(word, j, i, jj, ii):
       option.append("p%d_%d:%s" % (pj, pi, letter))
       option.append("wj%d_%d:%s" % (nw, k, self.encode(pj)))
       option.append("wi%d_%d:%s" % (nw, k, self.encode(pi)))
     yield " ".join(option)  
 
   def collect_words(self):
-    for word in self.iter_words():
+    for word in self.iter_word_vector():
       yield from self.option_word(*word)
 
   def collect_free_square(self):
