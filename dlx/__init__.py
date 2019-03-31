@@ -53,17 +53,26 @@ def _collect_secondary(options):
         items.add(item.split(":")[0])
   return items
 
-def build_dlx(options, primary=_collect_primary, secondary=_collect_secondary):
-  sorted_options = []
+def _id(items):
+  for item in items:
+    yield item
+
+def build_dlx(options,
+    primary=_collect_primary, secondary=_collect_secondary,
+    sorted_items=False, sorted_options=False):
+  item_sorter = sorted if sorted_options else _id
+  new_options = []
   for option in options:
-    sorted_options.append(" ".join(sorted(option.split(" "))))
-  poptions = primary(sorted_options)
-  soptions = secondary(sorted_options)
+    new_options.append(" ".join(item_sorter(option.split(" "))))
+  if sorted_options:
+    new_options.sort()
+  poptions = primary(new_options)
+  soptions = secondary(new_options)
   if soptions:
     yield "%s | %s" % (" ".join(poptions), " ".join(soptions))
   else:
     yield "%s" % (" ".join(poptions))
-  for option in sorted_options:
+  for option in new_options:
     yield option
 
 def parse_solutions(lines):

@@ -14,7 +14,8 @@
 import sys
 import itertools
 import argparse
-from collections import Counter
+import collections
+import dlx
 
 class IterTorto(object):
   def ngram_positions(self, n):
@@ -139,9 +140,9 @@ def collect_word(n, word, it, sharp, ngrams):
       yield " ".join(option)
 
 def histogram(words):
-  global_hist = Counter()
+  global_hist = collections.Counter()
   for word in words:
-    local_hist = Counter()
+    local_hist = collections.Counter()
     for item in word:
       local_hist[item] += 1
     for item, count in local_hist.items():
@@ -181,16 +182,6 @@ def collect_empty():
     yield "P%d%d" % (j, i)
     yield "P%d%d p%s:-" % (j, i, pos((j, i)))
 
-def extract_primary(option):
-  for item in option.split():
-    if ":" not in item and (item[0].isupper() or item[0] == "#"):
-      yield item
-
-def extract_secondary(option):
-  for item in option.split():
-    if ":" in item or item[0].islower():
-      yield item.split(":")[0]
-
 def main():
   parser = argparse.ArgumentParser(
       description="Generate a torto dlx file from a list of words")
@@ -198,6 +189,7 @@ def main():
       help="Use the sharp heuristic")
   parser.add_argument("--ngram", nargs=2, metavar=("minsize", "ngramsize"),
       help="Use ngrams greater than bigrams")
+  parser.add_argument("--dlx3",  help="Use options compatible with dlx3")
   args = parser.parse_args()
   nwords = int(input())
   words = [input().strip() for _ in range(nwords)]
@@ -209,15 +201,6 @@ def main():
   if args.sharp:
     options.extend(collect_letters(words))
     options.extend(collect_bigrams(words, it))
-  primary = set()
-  secondary = set()
-  for option in options:
-    for item in extract_primary(option):
-      primary.add(item)
-    for item in extract_secondary(option):
-      secondary.add(item)
-  print ("%s | %s" % (" ".join(primary), " ".join(secondary)))
-  for option in options:
-    print (option)
+  print("\n".join(dlx.build_dlx(options)))
 
 main()
