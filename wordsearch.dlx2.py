@@ -11,10 +11,13 @@ def iter_directions():
       yield a, b
 
 class WordSearch:
-  def __init__(self, words, size, depth):
+  def __init__(self, words, size, depth, freecell):
     self.words = words
     self.size = size
     self.depth = depth
+    self.freecell = freecell
+    self.grid = self.build_grid()
+    self.word_vectors = self.build_valid_word_vectors()
 
   def iter_vector(self, word):
     for jj, ii in iter_directions():
@@ -23,9 +26,6 @@ class WordSearch:
         ni = i + ii * (len(word) - 1)
         if 0 <= nj < self.size and 0 <= ni < self.size:
           yield (j, i, jj, ii)
-
-  def encode(self, j):
-    return chr(65 + j)
 
   def iter_word_vector(self):
     for nw, word in enumerate(self.words):
@@ -50,6 +50,30 @@ class WordSearch:
       pi = i + k * ii
       yield k, pj, pi, letter
 
+  def iter_valid_word_vector(self):
+    yield from self.word_vectors
+
+  def build_grid(self):
+    grid = [[{} for w in range(self.size)] for h in range(self.size)]
+    for nw, word, j, i, jj, ii, sym in self.iter_word_vector():
+      for k, pj, pi, letter in self.iter_word_letters(word, j, i, jj, ii):
+        grid[pj][pi].setdefault(letter, {}).setdefault(nw, []).append(
+            (k, j, i, jj, ii, sym))
+    return grid
+
+  def build_valid_word_vectors(self):
+    valid_word_vectors = set()
+    for pj, pi in dlx.iter_grid(self.size, self.size):
+      for letter, word_vectors in self.grid[pj][pi].items():
+        if len(word_vectors) > 2:
+          for nw, vectors in word_vectors.items():
+            for k, j, i, jj, ii, sym in vectors:
+              valid_word_vectors.add((nw, self.words[nw], j, i, jj, ii, sym))
+    return valid_word_vectors
+
+  def encode(self, j):
+    return chr(65 + j)
+
   def option_word(self, nw, word, j, i, jj, ii, sym):
     option = ["W%d" % nw]
     if sym:
@@ -61,7 +85,7 @@ class WordSearch:
     yield " ".join(option)  
 
   def collect_words(self):
-    for word in self.iter_word_vector():
+    for word in self.iter_valid_word_vector():
       yield from self.option_word(*word)
 
   def collect_free_square(self):
@@ -82,6 +106,7 @@ class WordSearch:
     options.append("DH%s" % self.size)
     options.extend(self.collect_words())
     options.extend(self.collect_free_square())
+
     #options.extend(self.collect_word_numbers())
     yield from dlx.build_dlx(options, sorted_items=True)
 
@@ -94,6 +119,8 @@ def main():
       help="Size of a square grid")
   parser.add_argument("--depth", nargs=1, type=int, default=None,
       help="Maximum depth of the word tree")
+  parser.add_argument("--freecell", action="store_true",
+      help="Force at least one cell to be free")
   args = parser.parse_args()
   size = args.size[0]
   words = []
@@ -111,7 +138,7 @@ def main():
   if any(len(word) > size for word in words):
     print ("Invalid grid", file=sys.stderr)
     return
-  solver = WordSearch(words, size, depth)
+  solver = WordSearch(words, size, depth, args.freecell)
   print("\n".join(solver.solve()))
 
 main()
