@@ -4,6 +4,7 @@ import sys
 import itertools
 import dlx
 import argparse
+import collections
 
 def iter_directions():
   for a, b in itertools.product([-1, 0, 1], repeat=2):
@@ -19,7 +20,8 @@ class WordSearch:
     self.grid = self.build_grid()
     self.crossing = crossing
     self.word_vectors = self.build_valid_word_vectors()
-    self.wordvec_hash = self.build_wordvec_hash()
+    self.word_indexes = self.build_word_indexes()
+    self.word_hashes = self.build_word_hashes()
     self.word_crossings = self.build_word_crossings()
     if verbose:
       self.print_info()
@@ -74,9 +76,9 @@ class WordSearch:
     return chr(65 + j)
 
   def encode_hash(self, nw, j, i, jj, ii):
-    word_hash = self.wordvec_hash.get((nw, j, i, jj, ii), None)
-    if word_hash:
-      return dlx.encode(word_hash, len(self.word_vectors[nw]))
+    word_index = self.word_indexes[(nw, j, i, jj, ii)]
+    if word_index:
+      return dlx.encode(word_index, len(self.word_vectors[nw]))
     else:
       return None
 
@@ -99,11 +101,19 @@ class WordSearch:
                   (self.words[nw], j, i, jj, ii, sym))
     return {nw: list(wordvecs) for nw, wordvecs in valid_word_vectors.items()}
 
-  def build_wordvec_hash(self):
-    hashes = {}
+  def build_word_indexes(self):
+    indexes = collections.defaultdict(lambda: None)
     for nw, wordvecs in self.word_vectors.items():
       for k, (word, j, i, jj, ii, sym) in enumerate(wordvecs):
-        hashes[(nw, j, i, jj, ii)] = k
+        indexes[(nw, j, i, jj, ii)] = k
+    return indexes
+
+  def build_word_hashes(self):
+    hashes = collections.defaultdict(lambda: None)
+    for nw, wordvecs in self.word_vectors.items():
+      for k, (word, j, i, jj, ii, sym) in enumerate(wordvecs):
+        vec = self.encode_hash(nw, j, i, jj, ii)
+        hashes[(nw, j, i, jj, ii)] = vec
     return hashes
 
   def build_word_crossings(self):
@@ -114,8 +124,8 @@ class WordSearch:
           for word1, word2 in itertools.product(words[nw1], words[nw2]):
             _, j1, i1, jj1, ii1, _ = word1
             _, j2, i2, jj2, ii2, _ = word2
-            hash1 = self.encode_hash(nw1, j1, i1, jj1, ii1)
-            hash2 = self.encode_hash(nw2, j2, i2, jj2, ii2)
+            hash1 = self.word_hashes[(nw1, j1, i1, jj1, ii1)]
+            hash2 = self.word_hashes[(nw2, j2, i2, jj2, ii2)]
             if hash1 is None or hash2 is None:
               continue
             crossings.setdefault((nw1, nw2), set()).add((hash1, hash2))
@@ -158,10 +168,13 @@ class WordSearch:
 
   def collect_crossings(self):
     for (nw1, nw2), cross in self.word_crossings.items():
+      seen = {}
       for hash1, hash2 in cross:
+        seen.setdefault(hash1, set()).add(hash2)
         option = ["C%d_%d" % (nw1, nw2)]
         option.append("h%d_%s:1" % (nw1, hash1))
         option.append("h%d_%s:1" % (nw2, hash2))
+        option.append("x%d_%d:1" % (nw1, nw2))
         yield " ".join(option)
 
   def solve(self):
