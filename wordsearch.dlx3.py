@@ -11,7 +11,7 @@ def iter_directions():
       yield a, b
 
 class WordSearch:
-  def __init__(self, words, size, depth, freecell, crossing):
+  def __init__(self, words, size, depth, freecell, crossing, verbose):
     self.words = words
     self.size = size
     self.depth = depth
@@ -19,6 +19,14 @@ class WordSearch:
     self.grid = self.build_grid()
     self.crossing = crossing
     self.word_vectors = self.build_valid_word_vectors()
+    self.wordvec_hash = self.build_wordvec_hash()
+    self.word_crossings = self.build_word_crossings()
+    if verbose:
+      self.print_info()
+
+  def print_info(self):
+    for nw, wordvecs in self.word_vectors.items():
+      print("%s: %d" % (self.words[nw], len(wordvecs)), file=sys.stderr)
 
   def iter_vector(self, word):
     for jj, ii in iter_directions():
@@ -52,13 +60,25 @@ class WordSearch:
       yield k, pj, pi, letter
 
   def iter_valid_word_vector(self):
-    yield from self.word_vectors
+    for nw, wordvecs in self.word_vectors.items():
+      for word, j, i, jj, ii, sym in wordvecs:
+        yield nw, word, j, i, jj, ii, sym
 
   def iter_word_crossings(self):
     for pj, pi in dlx.iter_grid(self.size, self.size):
       for letter, words in self.grid[pj][pi].items():
         for nw1, nw2 in itertools.combinations(words, 2):
           yield pj, pi, letter, nw1, nw2, words[nw1], words[nw2]
+
+  def encode(self, j):
+    return chr(65 + j)
+
+  def encode_hash(self, nw, j, i, jj, ii):
+    word_hash = self.wordvec_hash.get((nw, j, i, jj, ii), None)
+    if word_hash:
+      return dlx.encode(word_hash, len(self.word_vectors[nw]))
+    else:
+      return None
 
   def build_grid(self):
     grid = [[{} for w in range(self.size)] for h in range(self.size)]
@@ -69,17 +89,37 @@ class WordSearch:
     return grid
 
   def build_valid_word_vectors(self):
-    valid_word_vectors = set()
+    valid_word_vectors = {}
     for pj, pi in dlx.iter_grid(self.size, self.size):
       for letter, word_vectors in self.grid[pj][pi].items():
         if len(word_vectors) > 2:
           for nw, vectors in word_vectors.items():
             for k, j, i, jj, ii, sym in vectors:
-              valid_word_vectors.add((nw, self.words[nw], j, i, jj, ii, sym))
-    return valid_word_vectors
+              valid_word_vectors.setdefault(nw, set()).add(
+                  (self.words[nw], j, i, jj, ii, sym))
+    return {nw: list(wordvecs) for nw, wordvecs in valid_word_vectors.items()}
 
-  def encode(self, j):
-    return chr(65 + j)
+  def build_wordvec_hash(self):
+    hashes = {}
+    for nw, wordvecs in self.word_vectors.items():
+      for k, (word, j, i, jj, ii, sym) in enumerate(wordvecs):
+        hashes[(nw, j, i, jj, ii)] = k
+    return hashes
+
+  def build_word_crossings(self):
+    crossings = {}
+    for pj, pi in dlx.iter_grid(self.size, self.size):
+      for letter, words in self.grid[pj][pi].items():
+        for nw1, nw2 in itertools.combinations(sorted(words), 2):
+          for word1, word2 in itertools.product(words[nw1], words[nw2]):
+            _, j1, i1, jj1, ii1, _ = word1
+            _, j2, i2, jj2, ii2, _ = word2
+            hash1 = self.encode_hash(nw1, j1, i1, jj1, ii1)
+            hash2 = self.encode_hash(nw2, j2, i2, jj2, ii2)
+            if hash1 is None or hash2 is None:
+              continue
+            crossings.setdefault((nw1, nw2), set()).add((hash1, hash2))
+    return crossings
 
   def option_word(self, nw, word, j, i, jj, ii, sym):
     option = ["W%d" % nw]
@@ -90,12 +130,18 @@ class WordSearch:
       option.append("p%d_%d:%s" % (pj, pi, letter))
       used.add((pj, pi))
     if self.crossing:
-      for wj, wi in dlx.iter_grid(self.size, self.size):
-        option.append("w%d_%d_%d:%d" % (nw, wj, wi, int((wj, wi) in used)))
-    yield " ".join(option)  
+      word_hash = self.encode_hash(nw, j, i, jj, ii)
+      for _, kj, ki, kjj, kii, _ in self.word_vectors[nw]:
+        k_hash = self.encode_hash(nw, kj, ki, kjj, kii)
+        option.append("h%d_%s:%d" % (nw, k_hash, int(word_hash == k_hash)))
+    yield " ".join(option)
 
   def collect_words(self):
-    for word in self.iter_valid_word_vector():
+    if self.crossing:
+      word_iter = self.iter_valid_word_vector
+    else:
+      word_iter = self.iter_word_vector
+    for word in word_iter():
       yield from self.option_word(*word)
 
   def collect_free_cell(self):
@@ -111,22 +157,12 @@ class WordSearch:
         yield " ".join(option)
 
   def collect_crossings(self):
-    for pj, pi, letter, nw1, nw2, words1, words2 in self.iter_word_crossings():
-      option = ["C%d" % nw1, "C%d" % nw2]
-      option.append("p%d_%d:%s" % (pj, pi, letter))
-      option.append("w%d_%d_%d:1" % (nw1, pj, pi))
-      option.append("w%d_%d_%d:1" % (nw2, pj, pi))
-      yield " ".join(option)
-
-  def collect_primary(self, options):
-    items = set()
-    for option in options:
-      for item in option.split(" "):
-        if item.startswith("C"):
-          items.add("1:%d|%s" % (len(self.words) - 1, item))
-        elif item[0].isupper():
-          items.add(item)
-    return items
+    for (nw1, nw2), cross in self.word_crossings.items():
+      for hash1, hash2 in cross:
+        option = ["C%d_%d" % (nw1, nw2)]
+        option.append("h%d_%s:1" % (nw1, hash1))
+        option.append("h%d_%s:1" % (nw2, hash2))
+        yield " ".join(option)
 
   def solve(self):
     options = []
@@ -138,7 +174,7 @@ class WordSearch:
     if self.crossing:
       options.extend(self.collect_crossings())
     #options.extend(self.collect_word_numbers())
-    yield from dlx.build_dlx(options, primary=self.collect_primary, sorted_items=True)
+    yield from dlx.build_dlx(options, sorted_items=True)
 
 def main():
   parser = argparse.ArgumentParser(
@@ -153,6 +189,8 @@ def main():
       help="Force at least one cell to be free")
   parser.add_argument("--crossing", action="store_true",
       help="All words must be connected")
+  parser.add_argument("--verbose", action="store_true",
+      help="Display debug information")
   args = parser.parse_args()
   size = args.size[0]
   words = []
@@ -170,7 +208,7 @@ def main():
   if any(len(word) > size for word in words):
     print ("Invalid grid", file=sys.stderr)
     return
-  solver = WordSearch(words, size, depth, args.freecell, args.crossing)
+  solver = WordSearch(words, size, depth, args.freecell, args.crossing, args.verbose)
   print("\n".join(solver.solve()))
 
 main()
