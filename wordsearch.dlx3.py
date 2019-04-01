@@ -76,7 +76,7 @@ class WordSearch:
     return chr(65 + j)
 
   def encode_hash(self, nw, j, i, jj, ii):
-    word_index = self.word_indexes[(nw, j, i, jj, ii)]
+    word_index = self.word_indexes[nw][(j, i, jj, ii)]
     if word_index:
       return dlx.encode(word_index, len(self.word_vectors[nw]))
     else:
@@ -102,18 +102,20 @@ class WordSearch:
     return {nw: list(wordvecs) for nw, wordvecs in valid_word_vectors.items()}
 
   def build_word_indexes(self):
-    indexes = collections.defaultdict(lambda: None)
+    indexes = {}
     for nw, wordvecs in self.word_vectors.items():
+      indexes[nw] = collections.defaultdict(lambda: None)
       for k, (word, j, i, jj, ii, sym) in enumerate(wordvecs):
-        indexes[(nw, j, i, jj, ii)] = k
+        indexes[nw][(j, i, jj, ii)] = k
     return indexes
 
   def build_word_hashes(self):
-    hashes = collections.defaultdict(lambda: None)
+    hashes = {}
     for nw, wordvecs in self.word_vectors.items():
+      hashes[nw] = collections.defaultdict(lambda: None)
       for k, (word, j, i, jj, ii, sym) in enumerate(wordvecs):
         vec = self.encode_hash(nw, j, i, jj, ii)
-        hashes[(nw, j, i, jj, ii)] = vec
+        hashes[nw][(j, i, jj, ii)] = vec
     return hashes
 
   def build_word_crossings(self):
@@ -124,8 +126,8 @@ class WordSearch:
           for word1, word2 in itertools.product(words[nw1], words[nw2]):
             _, j1, i1, jj1, ii1, _ = word1
             _, j2, i2, jj2, ii2, _ = word2
-            hash1 = self.word_hashes[(nw1, j1, i1, jj1, ii1)]
-            hash2 = self.word_hashes[(nw2, j2, i2, jj2, ii2)]
+            hash1 = self.word_hashes[nw1][(j1, i1, jj1, ii1)]
+            hash2 = self.word_hashes[nw2][(j2, i2, jj2, ii2)]
             if hash1 is None or hash2 is None:
               continue
             crossings.setdefault((nw1, nw2), set()).add((hash1, hash2))
