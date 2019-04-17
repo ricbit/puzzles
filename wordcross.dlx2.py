@@ -92,7 +92,7 @@ def gen_word_letters(words):
   return word_letters
 
 def iter_word_crossings(word_letters):
-  for (pj, pi, letter), words in word_letters.iteritems():
+  for (pj, pi, letter), words in word_letters.items():
     for wordtuple1, wordtuple2 in itertools.product(words, repeat=2):
       nw1, j1, i1, jj1, ii1 = wordtuple1
       nw2, j2, i2, jj2, ii2 = wordtuple2
@@ -113,7 +113,7 @@ def collect_words(words, word_letters):
     option = ["#WM%d" % nw1]
     option.extend(iter_word_ident(nw1, j1, i1, jj1, ii1))
     option.extend(iter_word_ident(nw2, j2, i2, jj2, ii2))
-    for nw3 in xrange(len(words)):
+    for nw3 in range(len(words)):
       if nw1 != nw3:
         option.append("j%d_%d:%d" % (nw1, nw3, int(nw2 == nw3)))
     yield " ".join(option)
@@ -133,7 +133,28 @@ def collect_bigrams(words):
       option.append(encode_word_pos(nw, j, i, 0))
     yield " ".join(option)
 
+def collect_range(words, word_letters):
+  word_links = {}
+  for wordtuple1, wordtuple2 in iter_word_crossings(word_letters):
+    nw1 = wordtuple1[0]
+    nw2 = wordtuple2[0]
+    word_links.setdefault(nw1, set()).add(nw2)
+    word_links.setdefault(nw2, set()).add(nw1)
+  visited = [False] * len(words)
+  next_words = [(0, 0)]
+  visited[0] = True
+  min_value = {0 : 0}
+  while next_words:
+    node, value = next_words.pop(0)
+    for link in word_links[node]:
+      if not visited[link]:
+        visited[link] = True
+        min_value[link] = value + 1
+        next_words.append((link, value + 1))
+  return min_value
+
 def collect_order(words, word_letters):
+  word_range = collect_range(words, word_letters)
   yield "R0 r0:%s" % encode(0)
   seen = set()
   for wordtuple1, wordtuple2 in iter_word_crossings(word_letters):
@@ -142,7 +163,7 @@ def collect_order(words, word_letters):
     if nw1 == 0 or (nw1, nw2) in seen:
       continue
     seen.add((nw1, nw2))
-    for a in xrange(1, len(words)):
+    for a in range(1, len(words)):
       yield "R%d r%d:%s r%d:%s j%d_%d:1" % (nw1, nw1, encode(a), nw2, encode(a - 1), nw1, nw2)
 
 def extract_primary(option):
@@ -156,8 +177,8 @@ def extract_secondary(option):
       yield item.split(":")[0]
 
 def main():
-  nwords = int(raw_input())
-  words = [raw_input().strip() for _ in xrange(nwords)]
+  nwords = int(input())
+  words = [input().strip() for _ in range(nwords)]
   words.sort(key=lambda x: len(x), reverse=False)
   if any(len(word) > max(sizeh, sizew) for word in words):
     print >> sys.stderr, "Invalid grid"
@@ -173,8 +194,8 @@ def main():
       primary.add(item)
     for item in extract_secondary(option):
       secondary.add(item)
-  print "%s | %s" % (" ".join(primary), " ".join(secondary))
+  print("%s | %s" % (" ".join(primary), " ".join(secondary)))
   for option in options:
-    print option
+    print(option)
 
 main()

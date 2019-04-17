@@ -130,8 +130,8 @@ class WordSearch:
           for word1, word2 in itertools.product(words[nw1], words[nw2]):
             _, j1, i1, jj1, ii1, _ = word1
             _, j2, i2, jj2, ii2, _ = word2
-            hash1 = self.word_hashes[nw1].get((j1, i1, jj1, ii1), None)
-            hash2 = self.word_hashes[nw2].get((j2, i2, jj2, ii2), None)
+            hash1 = self.word_indexes[nw1].get((j1, i1, jj1, ii1), None)
+            hash2 = self.word_indexes[nw2].get((j2, i2, jj2, ii2), None)
             if (hash1 is None) or (hash2 is None):
               continue
             crossings.setdefault((nw1, nw2), set()).add((hash1, hash2))
@@ -141,15 +141,12 @@ class WordSearch:
     option = ["W%d" % nw]
     if sym:
       option.append("sym")
-    used = set()
     for k, pj, pi, letter in self.iter_word_letters(word, j, i, jj, ii):
-      option.append("p%d_%d:%s" % (pj, pi, letter))
-      used.add((pj, pi))
+      option.append("p%d_%d:%d" % (pj, pi, ord(letter)))
     if self.crossing:
-      word_hash = self.encode_hash(nw, j, i, jj, ii)
-      for _, kj, ki, kjj, kii, _ in self.word_vectors[nw]:
-        k_hash = self.encode_hash(nw, kj, ki, kjj, kii)
-        option.append("h%d_%s:%d" % (nw, k_hash, int(word_hash == k_hash)))
+      option.append("w%d:%d" % (nw, self.word_indexes[nw][(j, i, jj, ii)]))
+      if nw == 0:
+        option.append("t0:0")
     yield " ".join(option)
 
   def collect_words(self):
@@ -162,15 +159,7 @@ class WordSearch:
 
   def collect_free_cell(self):
     for j, i in itertools.product(range(self.size), repeat=2):
-      yield "P p%d_%d:." % (j, i)
-
-  def collect_word_numbers(self):
-    yield "N0 w0:0"
-    for i in range(1, len(self.words)):
-      for j in range(1, self.depth):
-        option = ["N%d" % i]
-        option.append("w%d:%d" % (i, j))
-        yield " ".join(option)
+      yield "P p%d_%d:%d" % (j, i, ord("."))
 
   def collect_crossings(self):
     for (nw1, nw2), cross in self.word_crossings.items():
@@ -178,24 +167,41 @@ class WordSearch:
       for hash1, hash2 in cross:
         seen[hash1].add(hash2)
         option = ["C%d_%d" % (nw1, nw2)]
-        option.append("h%d_%s:1" % (nw1, hash1))
-        option.append("h%d_%s:1" % (nw2, hash2))
+        option.append("w%d:%d" % (nw1, hash1))
+        option.append("w%d:%d" % (nw2, hash2))
         option.append("x%d_%d:1" % (nw1, nw2))
         yield " ".join(option)
-      for hash1, hashes in seen.items():
-        option = ["C%d_%d" % (nw1, nw2)]
-        option.append("h%d_%s:1" % (nw1, hash1))
-        for _, hash2 in self.word_hashes[nw2].items():
-          if hash2 not in hashes:
-            option.append("h%d_%s:0" % (nw2, hash2))
-        option.append("x%d_%d:0" % (nw1, nw2))
+      option = ["C%d_%d" % (nw1, nw2)]
+      option.append("x%d_%d:0" % (nw1, nw2))
+      yield " ".join(option)
+
+  def collect_word_numbers(self):
+    for i in range(1, len(self.words)):
+      for j in range(1, self.depth):
+        option = ["N%d" % i]
+        option.append("t%d:%d" % (i, j))
         yield " ".join(option)
-      for _, hash1 in self.word_hashes[nw1].items():
-        if hash1 not in seen:
-          option = ["C%d_%d" % (nw1, nw2)]
-          option.append("h%d_%s:1" % (nw1, hash1))
-          option.append("x%d_%d:0" % (nw1, nw2))
-          yield " ".join(option)
+
+  def flip(self, seq):
+    for a, b in seq:
+      yield a, b
+      yield b, a
+
+  def collect_trees(self):
+    for nw1, nw2 in self.flip(self.word_crossings):
+      if nw1 == 0:
+        continue
+      mindepth = 1 if nw2 == 0 else 2
+      maxdepth = 2 if nw2 == 0 else self.depth
+      for i in range(mindepth, maxdepth):
+        option = ["T%d" % nw1]
+        if nw1 < nw2:
+          option.append("x%d_%d:1" % (nw1, nw2))
+        else:
+          option.append("x%d_%d:1" % (nw2, nw1))
+        option.append("t%d:%d" % (nw1, i))
+        option.append("t%d:%d" % (nw2, i - 1))
+        yield " ".join(option)
 
   def solve(self):
     options = []
@@ -206,7 +212,8 @@ class WordSearch:
       options.extend(self.collect_free_cell())
     if self.crossing:
       options.extend(self.collect_crossings())
-    #options.extend(self.collect_word_numbers())
+      #options.extend(self.collect_word_numbers())
+      options.extend(self.collect_trees())
     yield from dlx.build_dlx(options, sorted_items=True)
 
 def main():
