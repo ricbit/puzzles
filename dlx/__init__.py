@@ -57,13 +57,19 @@ def _id(items):
   for item in items:
     yield item
 
+def _on_off_rewrite(items):
+  for item in items:
+    yield item.replace(":on", ":11").replace(":off", ":10")
+
 def build_dlx(options,
     primary=_collect_primary, secondary=_collect_secondary,
-    sorted_items=False, sorted_options=False):
+    sorted_items=False, sorted_options=False, on_off=False):
   item_sorter = sorted if sorted_options else _id
+  rewrite_item = _on_off_rewrite if on_off else _id
   new_options = []
   for option in options:
-    new_options.append(" ".join(item_sorter(option.split(" "))))
+    new_options.append(
+      " ".join(rewrite_item(item_sorter(option.split(" ")))))
   if sorted_options:
     new_options.sort()
   poptions = primary(new_options)
