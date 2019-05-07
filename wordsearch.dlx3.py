@@ -38,18 +38,26 @@ class WordSearch:
   def valid_rect(self, j, i, nj, ni):
     if nj < 1 - self.size or nj >= self.size:
       return False
-    if ni >= self.size:
+    if j < 1 - self.size or j >= self.size:
       return False
-    if i < self.xlimit - self.size or ni <= self.xlimit - self.size:
+    if ni >= self.size or i >= self.size:
+      return False
+    if i < self.xlimit - self.size or ni < self.xlimit - self.size:
       return False
     return True
 
-  def iter_range(self):
+  def iter_yrange(self):
     return range(1 - self.size, self.size)
+
+  def iter_xrange(self):
+    return range(self.xlimit - self.size, self.size)
+
+  def iter_range(self):
+    return itertools.product(self.iter_yrange(), self.iter_xrange())
 
   def iter_vector(self, word):
     for jj, ii in iter_directions():
-      for j, i in itertools.product(self.iter_range(), repeat=2):
+      for j, i in self.iter_range():
         nj = j + jj * (len(word) - 1)
         ni = i + ii * (len(word) - 1)
         if self.valid_rect(j, i, nj, ni):
@@ -61,7 +69,8 @@ class WordSearch:
         yield nw, word, 0, 0, 0, 1, False
       else:
         for j, i, jj, ii in self.iter_vector(word):
-          yield nw, word, j, i, jj, ii, False
+          if nw > 1 or j > 0 or (j == 0 and jj > 0):
+            yield nw, word, j, i, jj, ii, False
 
   def iter_word_letters(self, word, j, i, jj, ii):
     for k, letter in enumerate(word):
@@ -75,7 +84,7 @@ class WordSearch:
         yield nw, word, j, i, jj, ii, sym
 
   def iter_word_crossings(self):
-    for pj, pi in dlx.iter_grid(self.size, self.size):
+    for pj, pi in self.iter_range():
       for letter, words in self.grid[pj][pi].items():
         for nw1, nw2 in itertools.combinations(words, 2):
           yield pj, pi, letter, nw1, nw2, words[nw1], words[nw2]
@@ -98,7 +107,7 @@ class WordSearch:
 
   def build_valid_word_vectors(self):
     valid_word_vectors = set()
-    for pj, pi in dlx.iter_grid(self.size, self.size):
+    for pj, pi in self.iter_range():
       for letter, word_vectors in self.grid[pj][pi].items():
         if len(word_vectors) > 2:
           for nw, vectors in word_vectors.items():
@@ -129,7 +138,7 @@ class WordSearch:
 
   def build_word_crossings(self):
     crossings = {}
-    for pj, pi in dlx.iter_grid(self.size, self.size):
+    for pj, pi in self.iter_range():
       for letter, words in self.grid[pj][pi].items():
         for nw1, nw2 in itertools.combinations(sorted(words), 2):
           for word1, word2 in itertools.product(words[nw1], words[nw2]):
@@ -142,6 +151,20 @@ class WordSearch:
             crossings.setdefault((nw1, nw2), set()).add((hash1, hash2))
     return crossings
 
+  def add_columns(self, j, i, nj, ni):
+    mini, maxi = min(i, ni), max(i, ni)
+    minj, maxj = min(j, nj), max(j, nj)
+    for i2 in range(mini, 1 + maxi):
+      yield "c%d:on" % i2
+    for i2 in self.iter_xrange():
+      if i2 <= maxi - self.size or i2 >= mini + self.size:
+        yield "c%d:off" % i2
+    for j2 in range(minj, 1 + maxj):
+      yield "r%d:on" % j2
+    for j2 in self.iter_yrange():
+      if j2 <= maxj - self.size or j2 >= minj + self.size:
+        yield "r%d:off" % j2
+
   def option_word(self, nw, word, j, i, jj, ii, sym):
     option = ["W%d" % nw]
     if sym:
@@ -150,23 +173,11 @@ class WordSearch:
       option.append("p%d_%d:%d" % (pj, pi, ord(letter)))
     nj = j + jj * (len(word) - 1)
     ni = i + ii * (len(word) - 1)
-    mini, maxi = min(i, ni), max(i, ni)
-    if nw < 20:
-        for i2 in range(mini, 1 + maxi):
-          option.append("c%d:on" % i2)
-        for i2 in range(1 - self.size, self.size):
-          if i2 <= maxi - self.size:
-            option.append("c%d:off" % i2)
-        minj, maxj = min(j, nj), max(j, nj)
-        for j2 in range(minj, 1 + maxj):
-          option.append("r%d:on" % j2)
-        for j2 in range(1 - self.size, self.size):
-          if j2 <= maxj - self.size:
-            option.append("r%d:off" % j2)
+    option.extend(self.add_columns(j, i, nj, ni))
     if self.crossing:
-      option.append("w%d:%d" % (nw, self.word_indexes[nw][(j, i, jj, ii)]))
+      option.append("w%d:%d" % (nw, 100 + self.word_indexes[nw][(j, i, jj, ii)]))
       if nw == 0:
-        option.append("t0:off")
+        option.append("t0:1")
     yield " ".join(option)
 
   def collect_words(self):
@@ -178,34 +189,42 @@ class WordSearch:
       yield from self.option_word(*word)
 
   def collect_free_cell(self):
-    for j, i in itertools.product(self.iter_range(), repeat=2):
-      yield "P p%d_%d:%d" % (j, i, ord("."))
-
-  def collect_crossings(self):
-    for (nw1, nw2), cross in self.word_crossings.items():
-      seen = collections.defaultdict(lambda: set())
-      for hash1, hash2 in cross:
-        seen[hash1].add(hash2)
-        option = ["C%d_%d" % (nw1, nw2)]
-        option.append("w%d:%d" % (nw1, hash1))
-        option.append("w%d:%d" % (nw2, hash2))
-        option.append("x%d_%d:1" % (nw1, nw2))
-        yield " ".join(option)
-      option = ["C%d_%d" % (nw1, nw2)]
-      option.append("x%d_%d:0" % (nw1, nw2))
-      yield " ".join(option)
-
-  def collect_word_numbers(self):
-    for i in range(1, len(self.words)):
-      for j in range(1, self.depth):
-        option = ["N%d" % i]
-        option.append("t%d:%d" % (i, j))
-        yield " ".join(option)
+    for j, i in self.iter_range():
+      items = ["P",  "p%d_%d:%d" % (j, i, ord("."))]
+      items.extend(self.add_columns(j, i, j, i))
+      yield " ".join(items)
 
   def flip(self, seq):
     for a, b in seq:
       yield a, b
       yield b, a
+
+  def valid_word_pairs(self):
+    for (nw1a, nw2a), cross in self.word_crossings.items():
+      wordpairs = [(nw1a, nw2a)]
+      if nw1a > 0:
+        wordpairs = self.flip(wordpairs)
+      for nw1, nw2 in wordpairs:
+        yield (nw1, nw2), cross
+
+  def collect_crossings(self):
+    for (nw1, nw2), cross in self.valid_word_pairs():
+      seen = collections.defaultdict(lambda: set())
+      for hash1, hash2 in cross:
+        seen[hash1].add(hash2)
+        base = ["C%d_%d" % (nw1, nw2)]
+        base.append("w%d:%d" % (nw1, 100 + hash1))
+        base.append("w%d:%d" % (nw2, 100 + hash2))
+        base.append("x%d_%d:on" % (nw1, nw2))
+        for d in range(2, self.depth):
+          option = base[:]
+          if (nw1 > 0 and d > 2) or (nw1 == 0 and d == 2):
+            option.append("t%d:%d" % (nw1, d - 1))
+            option.append("t%d:%d" % (nw2, d))
+            yield " ".join(option)
+      option = ["C%d_%d" % (nw1, nw2)]
+      option.append("x%d_%d:off" % (nw1, nw2))
+      yield " ".join(option)
 
   def collect_trees(self):
     for nw1, nw2 in self.flip(self.word_crossings):
@@ -231,7 +250,7 @@ class WordSearch:
     if self.crossing:
       options.extend(self.collect_crossings())
       #options.extend(self.collect_word_numbers())
-      options.extend(self.collect_trees())
+      #options.extend(self.collect_trees())
     yield from dlx.build_dlx(options, on_off=True, sorted_items=True)
 
 def main():
@@ -258,7 +277,7 @@ def main():
       words.append(word)
   if args.words:
     words = words[:args.words[0]]
-  words.sort(key=lambda x: len(x), reverse=False)
+  words.sort(key=lambda x: len(x), reverse=True)
   if args.depth:
     depth = args.depth[0]
   else:
