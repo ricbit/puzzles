@@ -11,7 +11,7 @@ def parse_words(lines, config, source):
       a = int(match.group(1))
       p = int(match.group(2))
       pos = r"w%d%d%%d:(\d)" % (a, p)
-      word = int("".join(re.search(pos % i, line).group(1) for i in xrange(4)))
+      word = int("".join(re.search(pos % i, line).group(1) for i in range(4)))
       ans[a][1][p] = source[a][word]
       ans[a][0] = int(re.search(r"a\d_\d:(\d)", line).group(1))
       maxword = max(word, maxword)
@@ -21,7 +21,7 @@ def parse_config():
   f = open(sys.argv[1])
   n = int(f.readline().strip())
   config = {"size": []}
-  for _ in xrange(n):
+  for _ in range(n):
     config["size"].append(map(int, f.readline().split()))
   config["author"] = f.readline().strip()
   config["quote"] = f.readline().strip()
@@ -40,32 +40,31 @@ def draw_grid(config, solution):
   ans = []
   for a, (n, w) in enumerate(config["size"]):
     pos = solution[a][0]
-    for i in xrange(n):
+    for i in range(n):
       word = list(solution[a][1][i])
       word[pos] = word[pos].upper()
       ans.append("".join(word))
-  print
-  print "  %s" % "".join("%d" % (i + 1) for i in xrange(max(len(x) for x in ans)))
+  print("\n  %s" % "".join("%d" % (i + 1) for i in range(max(len(x) for x in ans))))
   letters = []
   for n, word in enumerate(ans):
     j = chr(ord('A') + n) 
-    print "%s %s" % (j, word)
+    print("%s %s" % (j, word))
     letters.extend((w, j, i) for i, w in enumerate(word) if w.islower())
-  print
+  print()
   return ans, letters
 
 def draw_solution(config, maxword, solution):
-  print maxword
+  print(maxword)
   ans, letters = draw_grid(config, solution)
   letters.sort()
   quote = [(c, n) for n, c in enumerate(config["quote"])]
   quote.sort()
   quote = quote[config["quote"].count(" "):]
   key = {n: (j, str(i + 1)) for ((w, j, i), (c, n)) in zip(letters,quote)}
-  print draw_coords(config, key, 0)    
-  print draw_coords(config, key, 1)
-  print config["quote"]
-  print
+  print(draw_coords(config, key, 0))   
+  print(draw_coords(config, key, 1))
+  print(config["quote"])
+  print()
 
 def main():
   config = parse_config()

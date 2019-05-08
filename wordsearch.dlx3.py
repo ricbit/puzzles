@@ -109,7 +109,7 @@ class WordSearch:
     valid_word_vectors = set()
     for pj, pi in self.iter_range():
       for letter, word_vectors in self.grid[pj][pi].items():
-        if len(word_vectors) > 2:
+        if len(word_vectors) >= 2:
           for nw, vectors in word_vectors.items():
             for k, j, i, jj, ii, sym in vectors:
               valid_word_vectors.add(
@@ -165,6 +165,10 @@ class WordSearch:
       if j2 <= maxj - self.size or j2 >= minj + self.size:
         yield "r%d:off" % j2
 
+  def set_tree_level(self, word, level):
+    for i in range(1, self.depth):
+      yield "t%d_%d:%s" % (word, i, "on" if i == level else "off")
+
   def option_word(self, nw, word, j, i, jj, ii, sym):
     option = ["W%d" % nw]
     if sym:
@@ -177,7 +181,7 @@ class WordSearch:
     if self.crossing:
       option.append("w%d:%d" % (nw, 100 + self.word_indexes[nw][(j, i, jj, ii)]))
       if nw == 0:
-        option.append("t0:1")
+        option.extend(self.set_tree_level(0, 1))
     yield " ".join(option)
 
   def collect_words(self):
@@ -200,47 +204,61 @@ class WordSearch:
       yield b, a
 
   def valid_word_pairs(self):
-    for (nw1a, nw2a), cross in self.word_crossings.items():
-      wordpairs = [(nw1a, nw2a)]
-      if nw1a > 0:
-        wordpairs = self.flip(wordpairs)
-      for nw1, nw2 in wordpairs:
-        yield (nw1, nw2), cross
+    for (nw1, nw2), cross in self.word_crossings.items():
+      yield (nw1, nw2), cross
+      if nw1 > 0:
+        yield (nw2, nw1), self.flip(cross)
+
+  def crossing_restriction(self, nw1, nw2):
+    yield "x%d_%d:on" % tuple(sorted([nw1, nw2]))
+    #for i in range(nw2):
+    #  if i != nw1:
+    #    yield "x%d_%d:off" % tuple(sorted([i, nw2]))
 
   def collect_crossings(self):
     for (nw1, nw2), cross in self.valid_word_pairs():
-      seen = collections.defaultdict(lambda: set())
       for hash1, hash2 in cross:
-        seen[hash1].add(hash2)
-        base = ["C%d_%d" % (nw1, nw2)]
+        base = ["C%d_%d" % tuple(sorted((nw1, nw2)))]
         base.append("w%d:%d" % (nw1, 100 + hash1))
         base.append("w%d:%d" % (nw2, 100 + hash2))
-        base.append("x%d_%d:on" % (nw1, nw2))
+        base.extend(self.crossing_restriction(nw1, nw2))
         for d in range(2, self.depth):
           option = base[:]
           if (nw1 > 0 and d > 2) or (nw1 == 0 and d == 2):
-            option.append("t%d:%d" % (nw1, d - 1))
-            option.append("t%d:%d" % (nw2, d))
+            option.extend(self.set_tree_level(nw1, d - 1))
+            option.extend(self.set_tree_level(nw2, d))
             yield " ".join(option)
-      option = ["C%d_%d" % (nw1, nw2)]
-      option.append("x%d_%d:off" % (nw1, nw2))
-      yield " ".join(option)
+      if nw1 < nw2:
+        mind = 1 if nw1 == 0 else 2
+        for d in range(mind, self.depth):
+          option = ["C%d_%d" % (nw1, nw2)]
+          option.append("x%d_%d:off" % tuple(sorted([nw1, nw2])))
+          option.append("t%d_%d:on" % (nw1, d))
+          if d > 0:
+            option.append("t%d_%d:off" % (nw2, d - 1))
+          if d < self.depth - 1:
+            option.append("t%d_%d:off" % (nw2, d + 1))
+          yield " ".join(option)
 
   def collect_trees(self):
-    for nw1, nw2 in self.flip(self.word_crossings):
-      if nw1 == 0:
-        continue
-      mindepth = 1 if nw2 == 0 else 2
-      maxdepth = 2 if nw2 == 0 else self.depth
-      for i in range(mindepth, maxdepth):
-        option = ["T%d" % nw1]
-        if nw1 < nw2:
-          option.append("x%d_%d:1" % (nw1, nw2))
-        else:
-          option.append("x%d_%d:1" % (nw2, nw1))
-        option.append("t%d:%d" % (nw1, i))
-        option.append("t%d:%d" % (nw2, i - 1))
-        yield " ".join(option)
+    word_pairs = {}
+    for (nw1, nw2), _ in self.valid_word_pairs():
+      word_pairs.setdefault(nw2, []).append(nw1)
+    for nw1 in word_pairs:
+      word_pairs[nw1].sort()
+    for nw1, nw2list in word_pairs.items():
+      for nw2 in nw2list:
+        mindepth = 1 if nw2 == 0 else 2
+        maxdepth = 2 if nw2 == 0 else self.depth
+        for i in range(mindepth, maxdepth):
+          option = ["T%d" % nw1]
+          option.append("x%d_%d:on" % tuple(sorted([nw1, nw2])))
+          option.extend(self.set_tree_level(nw1, i + 1))
+          option.append("t%d_%d:on" % (nw2, i))
+          for j in range(nw2):
+            if j != nw1:
+              option.append("t%d_%d:off" % (j, i))
+          yield " ".join(option)
 
   def solve(self):
     options = []
@@ -249,8 +267,7 @@ class WordSearch:
       options.extend(self.collect_free_cell())
     if self.crossing:
       options.extend(self.collect_crossings())
-      #options.extend(self.collect_word_numbers())
-      #options.extend(self.collect_trees())
+      options.extend(self.collect_trees())
     yield from dlx.build_dlx(options, on_off=True, sorted_items=True)
 
 def main():
@@ -266,6 +283,8 @@ def main():
       help="Force at least one cell to be free")
   parser.add_argument("--crossing", action="store_true",
       help="All words must be connected")
+  parser.add_argument("--reverse", action="store_true",
+      help="Reverse word order")
   parser.add_argument("--verbose", action="store_true",
       help="Display debug information")
   args = parser.parse_args()
@@ -277,7 +296,7 @@ def main():
       words.append(word)
   if args.words:
     words = words[:args.words[0]]
-  words.sort(key=lambda x: len(x), reverse=True)
+  words.sort(key=lambda x: len(x), reverse=args.reverse)
   if args.depth:
     depth = args.depth[0]
   else:
