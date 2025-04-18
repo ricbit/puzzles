@@ -4,6 +4,7 @@
 using namespace std;
 using namespace easyscip;
 
+
 bool valid(int i, int j, int w, int h) {
   return i >= 0 && i < w && j >= 0 && j < h;
 }
@@ -15,7 +16,8 @@ int main() {
   for (int i = 0; i < h; i++) {
     cin >> board[i];
   }
-  MIPSolver mip;
+  bool silent = true;
+  MIPSolver mip(silent);
   vector<vector<Variable>> lamp(h);
   for (int j = 0; j < h; j++) {
     for (int i = 0; i < w; i++) {
@@ -61,14 +63,46 @@ int main() {
   }
   // Solve and print.
   auto sol = mip.solve();
-  for (int j = 0; j < h; j++) {
-    for (int i = 0; i < w; i++) {
-      if (sol.value(lamp[j][i]) > 0.5) {
-        cout << '*';
-      } else {
-        cout << board[j][i];
+
+  const string wall = "⬛";
+  const string ulamp = "💡";
+  const string lit  = "  ";
+  const string floor = "⬜";
+  const string digits[] = {"０", "１", "２", "３", "４"};
+
+  // Top border
+  cout << "┌";
+  for (int i = 0; i < w - 1; ++i) cout << "──┬";
+  cout << "──┐\n";
+
+  for (int y = 0; y < h; ++y) {
+      cout << "│";
+      for (int x = 0; x < w; ++x) {
+          char c = board[y][x];
+          string cell;
+          if (c == '.') {
+              cell = sol.value(lamp[y][x]) > 0.5 ? ulamp : lit;
+          } else if (c == 'X') {
+              cell = wall;
+          } else if (c >= '0' && c <= '4') {
+              cell = digits[c - '0'];
+          } else {
+              cell = "？";
+          }
+          cout << cell << "│";
       }
-    }
-    cout << "\n";
+      cout << '\n';
+
+      // Row divider or bottom border
+      if (y < h - 1) {
+          cout << "├";
+          for (int i = 0; i < w - 1; ++i) cout << "──┼";
+          cout << "──┤\n";
+      } else {
+          cout << "└";
+          for (int i = 0; i < w - 1; ++i) cout << "──┴";
+          cout << "──┘\n";
+      }
   }
+
 }
