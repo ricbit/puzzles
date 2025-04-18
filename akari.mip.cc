@@ -54,8 +54,8 @@ int main() {
             jj += dy[k];
           }
         }
-        cons.add_variable(lamp[j][i], 1);
-        cons.commit(1, 1);
+        cons.add_variable(lamp[j][i], w * h);
+        cons.commit(1, w * h);
       }
     }
   }
