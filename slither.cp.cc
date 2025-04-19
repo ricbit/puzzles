@@ -74,11 +74,11 @@ class SingleLineConstraint : public ExternalConstraint {
     }
     for (const auto& link : links) {
       if (state->read_lmin(link.id) > 0 && !visited[link.id]) {
-        cout << "--\n";
+        /*cout << "--\n";
         for (auto x : dump) {
           cout << x << " ";
         }
-        cout << "\n\n";
+        cout << "\n\n";*/
         return false;
       }
     }
@@ -137,7 +137,7 @@ class SlitherLinkSolver {
   vector<Cell> cells;
  public:
   SlitherLinkSolver(int width_, int height_, const vector<string>& grid_)
-      : width(width_), height(height_), grid(grid_) {}
+      : width(width_), height(height_), grid(grid_), solver(true) {}
 
   int getid(int j, int i) {
     return j * (width + 1) + i;
@@ -187,6 +187,84 @@ class SlitherLinkSolver {
           cells.push_back(cell);
         }
       }
+    }
+  }
+  
+void print_terminal() {
+    int H = 2 * height + 1;
+    int W = 2 * width + 1;
+
+    // Build canvas with strings (to support Unicode box chars)
+    vector<vector<string>> canvas(H, vector<string>(W, " "));
+
+        // Place numbers or dots in every cell
+        for (int j = 0; j < height; ++j) {
+            for (int i = 0; i < width; ++i) {
+                int y = 2*j + 1, x = 2*i + 1;
+                if (isdigit(grid[j][i])) {
+                    canvas[y][x] = string(1, grid[j][i]);
+                } else {
+                    canvas[y][x] = "·";  // small dot for empty cell
+                }
+            }
+        }
+
+    // First pass: draw ─ and │ wherever a segment is present
+    for (const auto& link : links) {
+        if (solver.value(link.id) == 0) continue;
+
+        int y1 = nodes[link.a].y * 2;
+        int x1 = nodes[link.a].x * 2;
+        int y2 = nodes[link.b].y * 2;
+        int x2 = nodes[link.b].x * 2;
+
+        if (y1 == y2) {
+            for (int x = min(x1, x2) + 1; x < max(x1, x2); ++x) {
+                canvas[y1][x] = "─";
+                canvas[y1][x+1] = "─";
+                canvas[y1][x-1] = "─";
+             }
+        } else if (x1 == x2) {
+            for (int y = min(y1, y2) + 1; y < max(y1, y2); ++y)
+                canvas[y][x1] = "│";
+        }
+    }
+
+    // Second pass: replace + junctions with proper Unicode corners
+    for (int y = 0; y < H; y += 2) {
+        for (int x = 0; x < W; x += 2) {
+            bool up    = y > 0     && canvas[y - 1][x] == "│";
+            bool down  = y < H - 1 && canvas[y + 1][x] == "│";
+            bool left  = x > 0     && canvas[y][x - 1] == "─";
+            bool right = x < W - 1 && canvas[y][x + 1] == "─";
+
+            int count = up + down + left + right;
+            if (count == 0) continue;
+
+            if (count == 1) {
+                canvas[y][x] = (up || down) ? "│" : "─";
+            } else if (count == 2) {
+                if (up && down) canvas[y][x] = "│";
+                else if (left && right) canvas[y][x] = "─";
+                else if (up && right) canvas[y][x] = "└";
+                else if (up && left)  canvas[y][x] = "┘";
+                else if (down && right) canvas[y][x] = "┌";
+                else if (down && left)  canvas[y][x] = "┐";
+            } else if (count == 3) {
+                if (!up) canvas[y][x] = "┬";
+                else if (!down) canvas[y][x] = "┴";
+                else if (!left) canvas[y][x] = "├";
+                else if (!right) canvas[y][x] = "┤";
+            } else if (count == 4) {
+                canvas[y][x] = "┼";
+            }
+        }
+    }
+
+    // Print the final canvas
+    for (const auto& row : canvas) {
+        for (const auto& cell : row) cout << cell;
+        cout << '\n';
     }
   }
 
@@ -266,7 +344,7 @@ int main() {
   SlitherLinkSolver s(width, height, grid);  
   s.degeometrize();
   if (s.solve()) {
-    s.print();
+    s.print_terminal();
   }
   return 0;
 }
