@@ -191,13 +191,14 @@ class ConstraintSolver {
   int recursion_nodes, constraints_checked;
   State* state;
   ConstraintQueue* cqueue;
+  bool silent;
   std::vector<Variable> variables;
   std::vector<const ExternalConstraint*> external;
   std::vector<const TightenConstraint*> tighten;
  public:
-  ConstraintSolver() 
+  ConstraintSolver(bool silent=false) 
       : recursion_nodes(0), constraints_checked(0), 
-        state(nullptr), cqueue(nullptr) {}
+        state(nullptr), cqueue(nullptr), silent(silent) {}
   ~ConstraintSolver() { 
     delete state;
     delete cqueue;
@@ -230,8 +231,8 @@ class ConstraintSolver {
 
   bool solve() {
     state = new State(variables);
-    std::cout << "Variables: " << variables.size() << "\n";
-    std::cout << "Constraints: " << tighten.size() << "\n";
+    if (!silent) std::cout << "Variables: " << variables.size() << "\n";
+    if (!silent) std::cout << "Constraints: " << tighten.size() << "\n";
     cqueue = new ConstraintQueue(variables, tighten);
     tight();
     int freevars = 0;
@@ -240,11 +241,13 @@ class ConstraintSolver {
         freevars++;
       }
     }
-    std::cout << "Free variables: " << freevars << "\n";
+    if (!silent) std::cout << "Free variables: " << freevars << "\n";
     bool result = recursion();
-    std::cout << "Recursion nodes: " << recursion_nodes << "\n";
-    std::cout << "Constraints checked: " << constraints_checked << "\n";
-    std::cout << "Solution " << (result ? "" : "not ") << "found\n";
+    if (!silent) {
+      std::cout << "Recursion nodes: " << recursion_nodes << "\n";
+      std::cout << "Constraints checked: " << constraints_checked << "\n";
+      std::cout << "Solution " << (result ? "" : "not ") << "found\n";
+    }
     return result;
   }
 
@@ -257,19 +260,18 @@ class ConstraintSolver {
     VariableId index = choose();
     std::vector<Bounds> bkp = state->get_variables();
     int savemin = state->read_lmin(index), savemax = state->read_lmax(index);
-    //for (int i = savemax; i >= savemin; i--) {
     for (int i = savemin; i <= savemax; i++) {
       state->set_variables(bkp);
       state->change_var(index, i, i);
       cqueue->push_variable(index);
       if (tight() && valid()) {
         int x = 0;
-    for (const Variable& var : variables) {
-      if (state->fixed(var.id)) {
-        x++;
-      }
-    }
-    std::cout << "x " << x << "\n";
+        for (const Variable& var : variables) {
+          if (state->fixed(var.id)) {
+            x++;
+          }
+        }
+        if (!silent) std::cout << "x " << x << "\n";
         if (recursion()) {
           return true;
         }

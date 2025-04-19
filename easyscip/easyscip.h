@@ -226,8 +226,9 @@ class LPSolution : public BaseSolution {
 
 class MIPSolver {
  public:
-  MIPSolver() : constraints_(0) {
+  MIPSolver(bool silent=false) : constraints_(0) {
     SCIPcreate(&scip_);
+    SCIPsetMessagehdlrQuiet(scip_, silent);
     SCIPsetMessagehdlrLogfile(scip_, "log.txt");
     SCIPprintVersion(scip_, NULL);
     SCIPsetEmphasis(scip_, SCIP_PARAMEMPHASIS_OPTIMALITY, FALSE);
