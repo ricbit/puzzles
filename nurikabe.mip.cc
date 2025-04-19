@@ -6,9 +6,16 @@
 #include <tuple>
 #include <iostream>
 #include "easyscip/easyscip.h"
+#include <map>
+#include <string>
+#include "printers/printers.h"
 
 using namespace std;
 using namespace easyscip;
+
+// Forward declarations
+typedef vector<bool> vb;
+typedef vector<vb> vvb;
 
 struct Group {
   int length;
@@ -63,8 +70,8 @@ void group_iterator(int groups, T func) {
 
 template<typename T>
 void neighbour_iterator(int rows, int cols, int i, int j, T func) {
-  static int dx[] = {1, -1, 0, 0};
-  static int dy[] = {0, 0, 1, -1};
+  static const int dx[] = {1, -1, 0, 0};
+  static const int dy[] = {0, 0, 1, -1};
   for (int k = 0; k < 4; k++) {
     int ni = i + dx[k];
     int nj = j + dy[k];
@@ -121,12 +128,23 @@ struct NurikabeMIP {
  public:
   NurikabeMIP(int rows_, int cols_, const vector<Group>& group_,
       const vector<GroupPosition>& forbidden_, 
-      const vector<EmptyPosition>& empty_forbidden_) 
+      const vector<EmptyPosition>& empty_forbidden_)
       : rows(rows_), cols(cols_), groups(group_.size()), 
         group(group_), forbidden(forbidden_),
         empty_forbidden(empty_forbidden_), 
-        var(rows, cols) {
-    printf("Set up variables\n");
+        var(rows, cols), mip(true) {
+    setup_variables();
+    setup_constraints();
+    //printf("Variables loaded.\n");
+  }
+
+  NurikabeSolution solve() {
+    Solution sol = mip.solve();
+    return NurikabeSolution(rows, cols, groups, var, sol);
+  }
+
+ private:
+  void setup_variables() {
     // One variable for each cell, used or not.
     cell_iterator(rows, cols, [&](int i, int j) {
       var.used[i].push_back(mip.binary_variable(1));
@@ -150,6 +168,9 @@ struct NurikabeMIP {
     cell_iterator(rows - 1, cols, [&](int i, int j) {
       var.empty_edge_v[i].push_back(mip.binary_variable(1));
     });
+  }
+
+  void setup_constraints() {
     // Mark each group seed.
     group_iterator(groups, [&](int k) {
       Constraint used_cons = mip.constraint();
@@ -356,19 +377,21 @@ struct NurikabeMIP {
     });
     // Add the dynamic constraint to make groups continuous.
     //mip.add_dynamic_constraint(dynamic_constraint);
-    printf("Variables loaded.\n");
   }
+
   double diff(int row, int col, int idx) {
     return sqrt(sqr(row - group[idx].row) + sqr(col - group[idx].col));
   }
+
   int manhattan(int i, int j, int ii, int jj) {
     return abs(i - ii) + abs(j - jj);
   }
+
   bool near(int i, int j, int k) {
     for (int kk = 0; kk < groups; kk++) {
       if (k == kk) continue;
-      static int dx[] = {0, 0, 0, 1, -1};
-      static int dy[] = {0, 1, -1, 0, 0};
+      static const int dx[] = {0, 0, 0, 1, -1};
+      static const int dy[] = {0, 1, -1, 0, 0};
       for (int n = 0; n < 5; n++) {
         if (i == group[kk].row + dx[n] && j == group[kk].col + dy[n]) {
           return true;
@@ -377,12 +400,13 @@ struct NurikabeMIP {
     }
     return false;
   }
+
   template<typename T>
   bool unreachable_iterator(int rows, int cols, int i, int j, int k, T func) {
     if (manhattan(i, j, group[k].row, group[k].col) >= group[k].length) {
       return false;
     }
-    vector<vector<int> > value(rows, vector<int>(cols, -1));
+    vector<vector<int>> value(rows, vector<int>(cols, -1));
     priority_queue<tuple<int, int, int>> next;
 
     next.push(make_tuple(0, group[k].row, group[k].col));
@@ -480,10 +504,6 @@ struct NurikabeMIP {
     });
     return true;
   }
-  NurikabeSolution solve() {
-    Solution sol = mip.solve();
-    return NurikabeSolution(rows, cols, groups, var, sol);
-  }
 };
 
 void print_vector(const vector<pair<int, int>>& vec) {
@@ -500,50 +520,58 @@ struct Nurikabe {
   vector<vector<bool>> visited;
   vector<GroupPosition> forbidden;
   vector<EmptyPosition> empty_forbidden;
+
  public:
   Nurikabe(int rows_, int cols_, const vector<Group>& group_) 
       : rows(rows_), cols(cols_), group(group_), groups(group.size()),
-        visited(rows, vector<bool>(cols)) {
-  }
+        visited(rows, vector<bool>(cols)) {}
+
   void solve() {
     while (true) {
       clear_visited();
       vector<bool> visited_group(groups, false);
       NurikabeMIP mip(rows, cols, group, forbidden, empty_forbidden);
       NurikabeSolution sol = mip.solve();
-      int failures = 0;
-      int empties = count_empties(sol);
-      for (int i = 0; i < rows; i++) {
-        for (int j = 0; j < cols; j++) {
-          int value = sol.pos[i][j];
-          if (!visited[i][j] && value == -1) {
-            int length = grow(sol, i, j, -1, true);
-            if (length != empties) {
-              add_empties(sol);
-              failures++;
-            }
-          }
-          if (!visited[i][j] && value >= 0 && !visited_group[value]) {
-            visited_group[value] = true;
-            int length = grow(sol, i, j, value);
-            if (length != group[value].length) {
-              add_group(sol, value);
-              failures++;
-            }
-          }
-        }
-      }
-      //failures = 0;
-      print(sol);
+      int failures = check_solution(sol, visited_group);
       if (!failures) {
-        //print(sol);
+        print(sol);
         break;
       }
     }
   }
+
+ private:
+  int check_solution(NurikabeSolution& sol, vector<bool>& visited_group) {
+    int failures = 0;
+    int empties = count_empties(sol);
+    
+    for (int i = 0; i < rows; i++) {
+      for (int j = 0; j < cols; j++) {
+        int value = sol.pos[i][j];
+        if (!visited[i][j] && value == -1) {
+          int length = grow(sol, i, j, -1, true);
+          if (length != empties) {
+            add_empties(sol);
+            failures++;
+          }
+        }
+        if (!visited[i][j] && value >= 0 && !visited_group[value]) {
+          visited_group[value] = true;
+          int length = grow(sol, i, j, value);
+          if (length != group[value].length) {
+            add_group(sol, value);
+            failures++;
+          }
+        }
+      }
+    }
+    return failures;
+  }
+
   void add_empties(NurikabeSolution& sol) {
     EmptyPosition position;
     set<pair<int, int>> border;
+    
     cell_iterator(rows, cols, [&](int i, int j) {
       if (sol.pos[i][j] == -2) {
         position.empty.push_back(make_pair(i, j));
@@ -554,31 +582,35 @@ struct Nurikabe {
         });
       }
     });
+    
     position.border = vector<pair<int, int>>(border.begin(), border.end());
     empty_forbidden.push_back(position);
+    
     cell_iterator(rows, cols, [&](int i, int j) {
       if (sol.pos[i][j] == -2) {
         sol.pos[i][j] = -3;
       }
     });
+    
+    /*
     printf("Empty group: ");
     print_vector(position.empty);
     printf("Border group: ");
     print_vector(position.border);
+    */
   }
+
   int count_empties(const NurikabeSolution& sol) {
     int ans = 0;
-    for (int i = 0; i < rows; i++) {
-      for (int j = 0; j < cols; j++) {
-        if (sol.pos[i][j] < 0) {
-          ans++;
-        }
+    cell_iterator(rows, cols, [&](int i, int j) {
+      if (sol.pos[i][j] < 0) {
+        ans++;
       }
-    }
+    });
     return ans;
   }
-  int grow(NurikabeSolution& sol, int i, int j, int group_idx, 
-           bool mark=false) {
+
+  int grow(NurikabeSolution& sol, int i, int j, int group_idx, bool mark = false) {
     if (sol.pos[i][j] != group_idx || visited[i][j]) {
       return 0;
     }
@@ -592,40 +624,75 @@ struct Nurikabe {
     });
     return ans;
   }
+
   void add_group(const NurikabeSolution& sol, int group_idx) {
     GroupPosition group_pos;
     group_pos.group_idx = group_idx;
-    printf("Group %d: ", group_idx);
-    for (int i = 0; i < rows; i++) {
-      for (int j = 0; j < cols; j++) {
-        if (sol.pos[i][j] == group_idx) {
-          printf("%d %d, ", i, j);
-          group_pos.pos.push_back(make_pair(i, j));
-        }
+    //printf("Group %d: ", group_idx);
+    
+    cell_iterator(rows, cols, [&](int i, int j) {
+      if (sol.pos[i][j] == group_idx) {
+        //printf("%d %d, ", i, j);
+        group_pos.pos.push_back(make_pair(i, j));
       }
-    }
-    printf("\n");
+    });
+    
+    //printf("\n");
     forbidden.push_back(group_pos);
   }
+
   void clear_visited() {
-    for (int i = 0; i < rows; i++) {
-      for (int j = 0; j < cols; j++) {
-        visited[i][j] = false;
-      }
-    }
+    cell_iterator(rows, cols, [&](int i, int j) {
+      visited[i][j] = false;
+    });
   }
+
   void print(const NurikabeSolution& sol) {
-    for (int j = 0; j < cols; j++) {
-      for (int i = 0; i < rows; i++) {
-        char c = '.';
-        int k = sol.pos[i][j];
-        if (k >= 0) {
-          c = bigdigit(group[k].length);
-        }
-        printf("%c", c);
+    // Create group grid
+    vector<vector<char>> group_grid(rows, vector<char>(cols));
+    cell_iterator(rows, cols, [&](int i, int j) {
+      int k = sol.pos[i][j];
+      group_grid[i][j] = k >= 0 ? 'a' + k : '.';
+    });
+
+    // Set up cell symbols
+    std::map<int, std::string> cell_symbols;
+    cell_symbols[0] = "\033[34m・\033[0m";  // Blue centered wide dot for empty cells
+    for (int i = 0; i < this->groups; i++) {
+      string number;
+      if (group[i].length < 10) {
+        // Use wide digits for single digits
+        const char* wide_numbers[] = {"０", "１", "２", "３", "４", "５", "６", "７", "８", "９"};
+        number = wide_numbers[group[i].length];
+      } else {
+        // Use regular digits for numbers 10 and above
+        char buf[16];  // Increased buffer size to handle larger numbers safely
+        snprintf(buf, sizeof(buf), "%d", group[i].length);
+        number = buf;
       }
-      printf("\n");
+      // Regular symbol for group numbers
+      cell_symbols[i + 1] = number;
+      // Yellow symbol for seed positions
+      cell_symbols[-(i + 1)] = "\033[33m" + number + "\033[0m";
     }
+
+    // Create and use group printer
+    GroupPrinter printer(rows, cols, group_grid, cell_symbols, 2);
+    vector<vector<int>> grid(rows, vector<int>(cols));
+    cell_iterator(rows, cols, [&](int i, int j) {
+      int value = sol.pos[i][j];
+      if (value >= 0) {
+        // Check if this is a seed position
+        if (i == group[value].row && j == group[value].col) {
+          grid[i][j] = -(value + 1);  // Use negative index for seed positions
+        } else {
+          grid[i][j] = value + 1;  // Regular group number
+        }
+      } else {
+        grid[i][j] = 0;  // Water cell
+      }
+    });
+    printer.print(grid);
   }
 };
 
@@ -640,4 +707,5 @@ int main() {
   }
   Nurikabe nurikabe(rows, cols, group);
   nurikabe.solve();
+  return 0;
 }
