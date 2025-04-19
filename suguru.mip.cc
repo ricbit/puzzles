@@ -1,7 +1,9 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <map>
 #include "easyscip/easyscip.h"
+#include "printers/printers.h"
 
 using namespace std;
 using namespace easyscip;
@@ -34,7 +36,8 @@ int main() {
     }
   }
   // Add variables.
-  MIPSolver mip;
+  bool silent = true;
+  MIPSolver mip(silent);
   vector<vector<vector<Variable>>> board(w, vector<vector<Variable>>(h));
   for (int j = 0; j < h; j++) {
     for (int i = 0; i < w; i++) {
@@ -102,16 +105,34 @@ int main() {
   }
   // Solve and print.
   auto sol = mip.solve();
+
+  // Convert solution to grid format for GroupPrinter
+  vector<vector<int>> solution(h, vector<int>(w));
+  vector<vector<char>> groups(h, vector<char>(w));
   for (int j = 0; j < h; j++) {
     for (int i = 0; i < w; i++) {
-      cout << static_cast<char>('a' + group[j][i]);
+      // Store group information
+      groups[j][i] = 'a' + group[j][i];
+      // Find the number in this cell (1-based)
       for (int g = 0; g < group_size[group[j][i]]; g++) {
         if (sol.value(board[j][i][g]) > 0.5) {
-          cout << g + 1 << " ";
+          // Add 10 to given numbers to mark them differently
+          solution[j][i] = given[j][i] >= 0 ? (g + 11) : (g + 1);
+          break;
         }
       }
     }
-    cout << "\n";
   }
-  cout << "\n";
+
+  // Set up cell symbols with colors for givens
+  map<int, string> cell_symbols;
+  const char* wide_numbers[] = {"１", "２", "３", "４", "５"};
+  for (int i = 1; i <= 5; i++) {
+    cell_symbols[i] = wide_numbers[i-1];  // Normal numbers
+    cell_symbols[i + 10] = "\033[34m" + string(wide_numbers[i-1]) + "\033[0m";  // Blue for givens
+  }
+
+  // Create and use group printer
+  GroupPrinter printer(h, w, groups, cell_symbols, 2);
+  printer.print(solution);
 }
