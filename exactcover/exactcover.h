@@ -16,7 +16,7 @@ typedef std::vector<vb> vvb;
 struct count_solutions {
   int total;
   count_solutions(): total(0) {}
-  void operator()(const std::vector<int>& solution) {
+  void operator()(const std::vector<int>&) {
     total++;
   }
 };
