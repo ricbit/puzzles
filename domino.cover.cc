@@ -1,35 +1,55 @@
 #include <cstdio>
 #include <iostream>
 #include <vector>
+#include <map>
+#include <string>
 
 using namespace std;
 
 #include "exactcover/exactcover.h"
+#include "printers/printers.h"
+
+typedef vector<bool> vb;
+typedef vector<vb> vvb;
 
 int mat[7][8];
 int domino[7][7];
 
 struct print_solution {
   void operator()(const vector<int>& solution) {
-    int m[7][8], c = 1;
+    // Convert solution to grid format
+    vector<vector<int>> grid(7, vector<int>(8, 0));
+    vector<vector<char>> groups(7, vector<char>(8, 'a'));
+    char group_id = 'a';
+    
+    // Fill in the solution grid and group information
     for (int line : solution) {
       if (line < 49) {
         int i = line % 7, j = line / 7;
-        m[j][i] = c;
-        m[j][i+1] = c;
+        grid[j][i] = mat[j][i] + 1;
+        grid[j][i+1] = mat[j][i+1] + 1;
+        groups[j][i] = group_id;
+        groups[j][i+1] = group_id;
       } else {
         int i = (line - 49) % 8, j = (line - 49) / 8;
-        m[j][i] = c;
-        m[j+1][i] = c;
+        grid[j][i] = mat[j][i] + 1;
+        grid[j+1][i] = mat[j+1][i] + 1;
+        groups[j][i] = group_id;
+        groups[j+1][i] = group_id;
       }
-      c++;
+      group_id++;
     }
+
+    // Set up cell symbols with wide Unicode numbers
+    map<int, string> cell_symbols;
+    const char* wide_numbers[] = {"０", "１", "２", "３", "４", "５", "６"};
     for (int i = 0; i < 7; i++) {
-      for (int j = 0; j < 8; j++) {
-        printf("%02d ", m[i][j]);
-      }
-      printf("\n");
+      cell_symbols[i + 1] = wide_numbers[i];
     }
+
+    // Create and use group printer
+    GroupPrinter printer(7, 8, groups, cell_symbols, 2);
+    printer.print(grid);
   }
 };
 
