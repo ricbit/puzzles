@@ -43,7 +43,7 @@ struct print_solutions {
         cell_symbols[0] = "·";  // empty
 
         // Create and use the group printer
-        GroupPrinter printer(h, w, group_grid, cell_symbols);
+        GroupPrinter printer(h, w, group_grid, cell_symbols, 2);
         printer.print(grid);
     }
 };
