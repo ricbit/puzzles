@@ -90,7 +90,7 @@ class HashiSolver {
 
  public:
   HashiSolver(int width_, int height_, const vector<string>& grid_)
-      : width(width_), height(height_), grid(grid_) {
+      : width(width_), height(height_), grid(grid_), solver(true) {
   }
 
   template<typename T>
@@ -177,12 +177,6 @@ class HashiSolver {
     SingleGroupConstraint single_group(nodes, links);
     solver.add_external_constraint(&single_group);
     solver.solve();
-    for (const auto& link : links) {
-      auto var = solver.value(link.id);
-      cout << "solution from node " << nodes[link.a].size
-           << " to " << nodes[link.b].size << " is " 
-           << "(" << var << ")\n";
-    }
   }
 
   void print() {
@@ -202,7 +196,50 @@ class HashiSolver {
     fprintf(f, "}\n");
     fclose(f);
   }
+
+  void print_terminal() {
+    const string circled_digits[10] = { "⓪", "①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨" };
+    vector<vector<string>> canvas(2 * height - 1, vector<string>(2 * width - 1, "  "));
+
+    // Place nodes
+    for (const auto& n : nodes) {
+        canvas[2 * n.y][2 * n.x] = circled_digits[n.size] + " ";
+    }
+
+    // Place bridges (fill every cell between nodes!)
+    for (const auto& link : links) {
+        int count = solver.value(link.id);
+        if (count == 0) continue;
+
+        int x1 = 2 * nodes[link.a].x;
+        int y1 = 2 * nodes[link.a].y;
+        int x2 = 2 * nodes[link.b].x;
+        int y2 = 2 * nodes[link.b].y;
+
+        if (x1 == x2) {
+            // Vertical
+            for (int y = min(y1, y2) + 1; y < max(y1, y2); ++y) {
+                if (canvas[y][x1] == "  ")
+                    canvas[y][x1] = (count == 1) ? " │" : " ║";
+            }
+        } else if (y1 == y2) {
+            // Horizontal
+            for (int x = min(x1, x2) + 1; x < max(x1, x2); ++x) {
+                if (canvas[y1][x] == "  ")
+                    canvas[y1][x] = (count == 1) ? "──" : "══";
+            }
+        }
+    }
+
+    // Print it
+    for (const auto& row : canvas) {
+        for (const auto& cell : row)
+            cout << cell;
+        cout << '\n';
+    }
+  }
 };
+
 
 int main() {
   int width, height;
@@ -215,6 +252,6 @@ int main() {
   HashiSolver s(width, height, grid);
   s.degeometrize();
   s.solve();
-  s.print();
+  s.print_terminal();
   return 0;
 }
