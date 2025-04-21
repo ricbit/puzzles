@@ -1,21 +1,17 @@
 #include <iostream>
 #include <array>
-#include <vector> // Added for vector usage
-#include <string> // Added for string usage
-#include <map>    // Added for map usage
+#include <vector>
+#include <string>
+#include <map>
 #include "exactcover/exactcover.h"
-#include "printers/printers.h" // Includes GroupPrinter and visible_width
+#include "printers/printers.h"
+#include "printers/branches.h" // Include the new header
 
 using namespace std;
 
 bool valid(int j, int i, int w, int h) {
-
   return i >= 0 && i < w && j >= 0 && j < h;
 }
-
-struct Group {
-  int size, j, i;
-};
 
 typedef array<int, 4> Partition;
 
@@ -117,11 +113,6 @@ int main() {
     const int VERTICAL_LINE = -2;
     const int HORIZONTAL_LINE = -3;
 
-    // ANSI color codes
-    const std::string green = "\033[32m";
-    const std::string reset = "\033[0m";
-
-
     // Grid to store integer identifiers (group ID for seed, line IDs, or empty)
     vector<vector<int>> solution_grid(h, vector<int>(w, EMPTY_CELL));
     // Grid to store the character identifier for drawing group boundaries
@@ -158,51 +149,16 @@ int main() {
             // Check bounds before assigning
             if (valid(jj, ii, w, h)) {
                 // Assign vertical or horizontal line ID based on direction d
-                // d=0 (N), d=2 (S) -> Vertical
-                // d=1 (E), d=3 (W) -> Horizontal
                 solution_grid[jj][ii] = (d == 0 || d == 2) ? VERTICAL_LINE : HORIZONTAL_LINE;
                 groupmap[jj][ii] = group_char_for_map;
             } else {
-                // This case should ideally be prevented by valid_tile, but good to have a check
                 cerr << "Warning: Branch cell (" << jj << "," << ii << ") out of bounds during iteration." << endl;
             }
         });
     }
 
-    // Define symbols for the cells (using Unicode circled numbers/letters)
-    const std::string circled[36] = {
-        "⓪","①","②","③","④","⑤","⑥","⑦","⑧","⑨",
-        "Ⓐ","Ⓑ","Ⓒ","Ⓓ","Ⓔ","Ⓕ","Ⓖ","Ⓗ","Ⓘ","Ⓙ",
-        "Ⓚ","Ⓛ","Ⓜ","Ⓝ","Ⓞ","Ⓟ","Ⓠ","Ⓡ","Ⓢ","Ⓣ",
-        "Ⓤ","Ⓥ","Ⓦ","Ⓧ","Ⓨ","Ⓩ"
-    };
+    // Call the centralized printer function
+    print_branches_grid(h, w, groups, solution_grid, groupmap);
 
-    // Map the integer group identifiers (0 to gs-1) to their string symbols
-    std::map<int, std::string> cell_symbols;
-
-    // Add symbols for lines and empty cells
-    cell_symbols[EMPTY_CELL] = "  "; // Two spaces for empty
-    // *** Add green color codes here ***
-    cell_symbols[VERTICAL_LINE] = green + "│" + reset;
-    cell_symbols[HORIZONTAL_LINE] = green + "─" + reset;
-
-    // Add symbols for the seed cells
-    for (int g_idx = 0; g_idx < gs; g_idx++) {
-        // Ensure the group size index is within the bounds of the circled array
-        if (groups[g_idx].size >= 0 && groups[g_idx].size < 36) {
-             // Map the group index (g_idx) to the symbol representing its size
-             cell_symbols[g_idx] = circled[groups[g_idx].size];
-        } else {
-             cell_symbols[g_idx] = "??"; // Fallback for unexpected sizes
-             cerr << "Warning: Group " << g_idx << " has unexpected size " << groups[g_idx].size << endl;
-        }
-    }
-
-    // Create and use the GroupPrinter
-    // Pass the groupmap for boundaries and cell_symbols for content
-    // Cell width 2 should work: seeds are width 2, lines are width 1 (will be padded)
-    // visible_width in printers.h handles ANSI codes correctly.
-    GroupPrinter printer(h, w, groupmap, cell_symbols, 2);
-    printer.print(solution_grid); // Pass the grid containing integer identifiers
-  });
+  }); // End of exactcover lambda
 }
