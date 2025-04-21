@@ -1,15 +1,14 @@
 #include <iostream>
 #include <vector>
 #include <string>
-#include <map> // Include map for cell_symbols
-#include <limits> // Include for numeric_limits
+#include <map>
+#include <limits>
 #include "easyscip/easyscip.h"
-#include "printers/printers.h" // Include GroupPrinter header
+#include "printers/printers.h"
 
 using namespace std;
 using namespace easyscip;
 
-// valid function remains the same
 bool valid(int i, int j, int w, int h) {
   return i >= 0 && i < w && j >= 0 && j < h;
 }
@@ -17,17 +16,15 @@ bool valid(int i, int j, int w, int h) {
 int main() {
   int w,h;
   cin >> w >> h;
-  vector<string> input_board(h); // Renamed to avoid conflict with variable name 'board'
+  vector<string> input_board(h);
   for (int i = 0; i < h; i++) {
     cin >> input_board[i];
   }
   MIPSolver mip;
 
-  // *** CORRECTED VARIABLE INITIALIZATION START ***
   vector<vector<Variable>> red(h);
   vector<vector<Variable>> blue(h);
   for (int j = 0; j < h; j++) {
-    // Reserve space beforehand for efficiency (optional but good practice)
     red[j].reserve(w);
     blue[j].reserve(w);
     for (int i = 0; i < w; i++) {
@@ -36,13 +33,12 @@ int main() {
       blue[j].emplace_back(mip.binary_variable(0));
     }
   }
-  // *** CORRECTED VARIABLE INITIALIZATION END ***
 
 
   // Add the givens.
   for (int j = 0; j < h; j++) {
     for (int i = 0; i < w; i++) {
-      if (input_board[j][i] == 'r') { // Use input_board here
+      if (input_board[j][i] == 'r') {
         auto cons = mip.constraint();
         cons.add_variable(red[j][i], 1);
         cons.commit(1, 1);
@@ -51,9 +47,9 @@ int main() {
         cons_blue.add_variable(blue[j][i], 1);
         cons_blue.commit(0, 0);
       }
-      if (input_board[j][i] == 'b') { // Use input_board here
+      if (input_board[j][i] == 'b') {
         auto cons = mip.constraint();
-        cons.add_variable(blue[j][i], 1); // Constrain blue directly
+        cons.add_variable(blue[j][i], 1);
         cons.commit(1, 1);
          // Also constrain red to 0 for givens
         auto cons_red = mip.constraint();
@@ -82,7 +78,7 @@ int main() {
     cons.commit(w / 2, w / 2);
   }
 
-  // Exactly h/2 reds per column. (Corrected comment)
+  // Exactly h/2 reds per column.
   for (int i = 0; i < w; i++) {
     auto cons = mip.constraint();
     for (int j = 0; j < h; j++) {
@@ -262,6 +258,6 @@ int main() {
       cout << "No solution found (problem might be infeasible or solver stopped early).\n";
   }
 
-  cout << "\n"; // Keep a final newline
-  return 0; // Indicate successful execution
+  cout << "\n";
+  return 0;
 }
